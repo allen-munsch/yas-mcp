@@ -23,7 +23,7 @@ This server bridges OpenAPI specifications with the Model Context Protocol, allo
 cargo build --release
 ```
 
-The binary will be available at `target/release/openapi-mcp`
+The binary will be available at `target/release/yas-mcp`
 
 ### Using Docker
 
@@ -36,7 +36,7 @@ docker compose up
 ### Basic Usage
 
 ```bash
-openapi-mcp --swagger-file path/to/openapi.yaml --mode stdio
+yas-mcp --swagger-file path/to/openapi.yaml --mode stdio
 ```
 
 ### Configuration File
@@ -66,7 +66,7 @@ swagger_file: examples/todo-app/openapi.yaml
 Then run:
 
 ```bash
-openapi-mcp --config config.yaml
+yas-mcp --config config.yaml
 ```
 
 ### Command Line Options
@@ -86,7 +86,7 @@ openapi-mcp --config config.yaml
 Primary MCP mode for direct integration with AI assistants:
 
 ```bash
-openapi-mcp --swagger-file api.yaml --mode stdio
+yas-mcp --swagger-file api.yaml --mode stdio
 ```
 
 ### HTTP Mode
@@ -94,7 +94,7 @@ openapi-mcp --swagger-file api.yaml --mode stdio
 JSON-RPC over HTTP with session management:
 
 ```bash
-openapi-mcp --swagger-file api.yaml --mode http --port 3000
+yas-mcp --swagger-file api.yaml --mode http --port 3000
 ```
 
 Endpoints:
@@ -108,7 +108,7 @@ Endpoints:
 Server-Sent Events for streaming responses:
 
 ```bash
-openapi-mcp --swagger-file api.yaml --mode sse --port 3000
+yas-mcp --swagger-file api.yaml --mode sse --port 3000
 ```
 
 ## Adjustments File
