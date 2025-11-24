@@ -1,0 +1,57 @@
+[package]
+name = "yas-mcp"
+description = "yet another swagger mcp"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"  # Add this line for build scripts
+
+[dependencies]
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+clap = { version = "4.0", features = ["derive"] }
+tracing = "0.1"
+anyhow = "1.0"
+thiserror = "1.0"
+
+# MCP SDK
+rmcp = { version = "0.9.0", features = [
+    "transport-async-rw", 
+    "transport-streamable-http-server",
+    "transport-streamable-http-server-session", 
+    "transport-worker",
+    "transport-sse-server",
+    ] }
+rmcp-macros = "0.9.0"
+schemars = "0.8"
+
+# Web/HTTP dependencies
+reqwest = { version = "0.11", features = ["json"] }
+axum = "0.8.7"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors"] }
+
+# OpenAPI handling
+openapiv3 = { version = "2.0.0-rc.1" }
+
+# Configuration
+config = "0.13"
+
+# Logging
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# For potential TUI (if we keep that functionality)
+crossterm = "0.27"
+tui = "0.19"
+async-trait = "0.1.89"
+futures-util = "0.3.31"
+tokio-stream = "0.1.17"
+async-stream = "0.3.6"
+tokio-util = "0.7.17"
+futures = "0.3.31"
+uuid = "1.18.1"
+
+[build-dependencies]
+vergen = { version = "9.0.6", features = ["build", "si", "rustc", "cargo"] }
+anyhow = "1.0"

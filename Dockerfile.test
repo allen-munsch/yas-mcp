@@ -1,0 +1,30 @@
+FROM rust:1.91-alpine
+
+# Install build dependencies and testing tools
+RUN apk add --no-cache \
+    musl-dev \
+    pkgconfig \
+    openssl-dev \
+    openssl-libs-static \
+    curl \
+    jq \
+    wget \
+    make
+
+WORKDIR /app
+
+# Copy source code and test files
+COPY . .
+
+# Create test directories
+RUN mkdir -p /app/test-results
+
+# Install cargo-nextest for better test output
+RUN cargo install cargo-nextest --locked
+
+# Copy test script
+COPY scripts/test-integration.sh /app/scripts/test-integration.sh
+RUN chmod +x /app/scripts/test-integration.sh
+
+# Default command - run integration tests
+CMD ["/app/scripts/test-integration.sh"]

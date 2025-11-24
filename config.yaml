@@ -1,0 +1,40 @@
+server:
+  mode: http
+  port: 8080
+  host: "0.0.0.0"
+  timeout: "30s"
+  name: "OpenAPI MCP"
+  version: "0.1.0"
+
+logging:
+  level: "debug"  # Changed to debug for more visibility
+  format: "compact"
+  color: false
+  disable_stacktrace: false
+  output_path: "logs/yas-mcp.log"
+  append_to_file: true
+  disable_console: false
+
+endpoint:
+  base_url: "http://127.0.0.1:4010"  # Changed to your Prism server
+  auth_type: "bearer"  # Changed to match your OpenAPI spec
+  auth_config:
+    token: "test-token-123"  # Use a test token for Prism
+  headers:
+    Content-Type: "application/json"
+    Authorization: "Bearer test-token-123"  # Add auth header
+
+# (optional)
+adjustments_file: "examples/todo-app/adjustments.yaml"
+
+# OAuth configuration (optional)
+# oauth:
+#   enabled: true
+#   provider: "github"
+#   client_id: "your-github-client-id"
+#   client_secret: "your-github-client-secret"
+#   scopes: ["user:email", "read:user"]
+#   allow_origins: ["http://127.0.0.1:6274"]
+
+# Required fields
+swagger_file: "examples/todo-app/openapi.yaml"

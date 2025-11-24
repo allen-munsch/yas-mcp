@@ -1,0 +1,101 @@
+# Route descriptions overrides for Todo API
+descriptions:
+  - path: "/auth/login"
+    updates:
+      - method: "POST"
+        new_description: "Authenticate user with email and password to obtain JWT token for API access"
+
+  - path: "/auth/register"
+    updates:
+      - method: "POST"
+        new_description: "Create a new user account with email, password, and name"
+
+  - path: "/users/me"
+    updates:
+      - method: "GET"
+        new_description: "Retrieve the currently authenticated user's profile information"
+      - method: "PUT"
+        new_description: "Update the current user's profile details like name and avatar"
+
+  - path: "/projects"
+    updates:
+      - method: "GET"
+        new_description: "Get paginated list of projects with optional filtering by archived status and search"
+      - method: "POST"
+        new_description: "Create a new project with title, description, and color coding"
+
+  - path: "/projects/{project_id}"
+    updates:
+      - method: "GET"
+        new_description: "Retrieve detailed information about a specific project including all metadata"
+      - method: "PUT"
+        new_description: "Update project details including title, description, color, and archive status"
+      - method: "DELETE"
+        new_description: "Permanently delete a project and all associated tasks and comments"
+
+  - path: "/projects/{project_id}/tasks"
+    updates:
+      - method: "GET"
+        new_description: "List tasks within a project with advanced filtering by status, priority, assignee, due dates, and search"
+      - method: "POST"
+        new_description: "Create a new task in the project with detailed attributes like priority, due date, and assignee"
+
+  - path: "/tasks/{task_id}"
+    updates:
+      - method: "GET"
+        new_description: "Get complete task details including comments, attachments, and time tracking"
+      - method: "PUT"
+        new_description: "Update task information including status, priority, due dates, and time tracking"
+      - method: "DELETE"
+        new_description: "Delete a task and all its associated comments and file attachments"
+
+  - path: "/tasks/{task_id}/comments"
+    updates:
+      - method: "GET"
+        new_description: "Retrieve all comments for a task with pagination support"
+      - method: "POST"
+        new_description: "Add a new comment to a task, optionally as a reply to an existing comment"
+
+  - path: "/tasks/{task_id}/attachments"
+    updates:
+      - method: "POST"
+        new_description: "Upload file attachments to a task with support for various file types"
+
+  - path: "/analytics/projects/stats"
+    updates:
+      - method: "GET"
+        new_description: "Get comprehensive analytics and statistics for projects and tasks over specified timeframes"
+
+  - path: "/reports/tasks/export"
+    updates:
+      - method: "POST"
+        new_description: "Generate and export detailed task reports in PDF, CSV, or Excel formats with customizable filters"
+
+# Route selections (only these routes will be exposed as MCP tools)
+routes:
+  - path: "/auth/login"
+    methods: ["POST"]
+  - path: "/auth/register"
+    methods: ["POST"]
+  - path: "/users/me"
+    methods: ["GET", "PUT"]
+  - path: "/projects"
+    methods: ["GET", "POST"]
+  - path: "/projects/{project_id}"
+    methods: ["GET", "PUT", "DELETE"]
+  - path: "/projects/{project_id}/tasks"
+    methods: ["GET", "POST"]
+  - path: "/tasks/{task_id}"
+    methods: ["GET", "PUT", "DELETE"]
+  - path: "/tasks/{task_id}/comments"
+    methods: ["GET", "POST"]
+  - path: "/comments/{comment_id}"
+    methods: ["PUT", "DELETE"]
+  - path: "/tasks/{task_id}/attachments"
+    methods: ["POST"]
+  - path: "/attachments/{attachment_id}"
+    methods: ["GET", "DELETE"]
+  - path: "/analytics/projects/stats"
+    methods: ["GET"]
+  - path: "/reports/tasks/export"
+    methods: ["POST"]
