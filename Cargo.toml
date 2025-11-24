@@ -14,7 +14,7 @@ serde_yaml = "0.9"
 clap = { version = "4.0", features = ["derive"] }
 tracing = "0.1"
 anyhow = "1.0"
-thiserror = "1.0"
+thiserror = "2.0"
 
 # MCP SDK
 rmcp = { version = "0.9.0", features = [
@@ -25,25 +25,25 @@ rmcp = { version = "0.9.0", features = [
     "transport-sse-server",
     ] }
 rmcp-macros = "0.9.0"
-schemars = "0.8"
+schemars = "1.1"
 
 # Web/HTTP dependencies
-reqwest = { version = "0.11", features = ["json"] }
+reqwest = { version = "0.12", features = ["json"] }
 axum = "0.8.7"
-tower = "0.4"
-tower-http = { version = "0.5", features = ["cors"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors"] }
 
 # OpenAPI handling
 openapiv3 = { version = "2.0.0-rc.1" }
 
 # Configuration
-config = "0.13"
+config = "0.15"
 
 # Logging
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # For potential TUI (if we keep that functionality)
-crossterm = "0.27"
+crossterm = "0.29"
 tui = "0.19"
 async-trait = "0.1.89"
 futures-util = "0.3.31"
