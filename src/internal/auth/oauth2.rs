@@ -112,7 +112,7 @@ impl OAuth2Client {
     }
 
     /// Handle token response (provider-specific parsing)
-    async fn handle_token_response(&self, mut response: reqwest::Response) -> Result<OAuth2Token> {
+    async fn handle_token_response(&self, response: reqwest::Response) -> Result<OAuth2Token> {
         let status = response.status();
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();

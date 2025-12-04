@@ -63,27 +63,27 @@ impl Handler {
     }
 
     /// Authentication middleware
-    async fn auth_middleware(
-        request: Request<Body>,
-        next: Next, // Removed <Body> generic
-    ) -> Result<impl IntoResponse, (StatusCode, String)> {
-        // Extract and validate authentication headers
-        let headers = request.headers();
+    // async fn auth_middleware(
+    //     request: Request<Body>,
+    //     next: Next, // Removed <Body> generic
+    // ) -> Result<impl IntoResponse, (StatusCode, String)> {
+    //     // Extract and validate authentication headers
+    //     let headers = request.headers();
 
-        // Check for Authorization header
-        if let Some(auth_header) = headers.get("authorization") {
-            if let Ok(auth_str) = auth_header.to_str() {
-                debug!("Auth header present: {}", auth_str);
-                // TODO: Validate token
-            }
-        } else {
-            debug!("No auth header present");
-        }
+    //     // Check for Authorization header
+    //     if let Some(auth_header) = headers.get("authorization") {
+    //         if let Ok(auth_str) = auth_header.to_str() {
+    //             debug!("Auth header present: {}", auth_str);
+    //             // TODO: Validate token
+    //         }
+    //     } else {
+    //         debug!("No auth header present");
+    //     }
 
-        // For now, allow all requests - implement proper auth later
-        let response = next.run(request).await;
-        Ok(response)
-    }
+    //     // For now, allow all requests - implement proper auth later
+    //     let response = next.run(request).await;
+    //     Ok(response)
+    // }
 
     /// Middleware to log HTTP requests
     async fn log_requests(
