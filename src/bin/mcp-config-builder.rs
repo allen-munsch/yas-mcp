@@ -48,8 +48,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     // TODO: Implement TUI for route selection and description editing
-    println!("TUI functionality not yet implemented in Rust version");
-    println!("Use the Go version for interactive configuration building");
+    println!("TUI functionality not yet implemented");
 
     Ok(())
 }
