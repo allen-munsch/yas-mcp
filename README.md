@@ -1,5 +1,11 @@
 # OpenAPI MCP Server
 
+![fmt](https://github.com/allen-munsch/yas-mcp/actions/workflows/ci.yml/badge.svg?job=fmt)
+![clippy](https://github.com/allen-munsch/yas-mcp/actions/workflows/ci.yml/badge.svg?job=clippy)
+![build](https://github.com/allen-munsch/yas-mcp/actions/workflows/ci.yml/badge.svg?job=build)
+![security](https://github.com/allen-munsch/yas-mcp/actions/workflows/ci.yml/badge.svg?job=security)
+
+
 A Rust-based Model Context Protocol (MCP) server that automatically exposes OpenAPI/Swagger endpoints as MCP tools.
 
 ## Overview

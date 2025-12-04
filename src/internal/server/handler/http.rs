@@ -84,7 +84,7 @@ impl Handler {
     //     let response = next.run(request).await;
     //     Ok(response)
     // }
-
+    #[allow(clippy::empty_line_after_doc_comments)]
     /// Middleware to log HTTP requests
     async fn log_requests(
         request: Request<Body>,

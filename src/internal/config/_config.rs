@@ -35,9 +35,10 @@ pub fn get_version_info() -> String {
 }
 
 /// AuthType represents the type of authentication to use
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub enum AuthType {
     #[serde(rename = "none")]
+    #[default]
     None,
     #[serde(rename = "basic")]
     Basic,
@@ -49,13 +50,7 @@ pub enum AuthType {
     OAuth2,
 }
 
-impl Default for AuthType {
-    fn default() -> Self {
-        Self::None
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct EndpointConfig {
     pub base_url: String,
     #[serde(default)]
@@ -67,23 +62,18 @@ pub struct EndpointConfig {
 }
 
 /// ServerMode represents the server operation mode
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub enum ServerMode {
     #[serde(rename = "sse")]
     Sse,
     #[serde(rename = "stdio")]
+    #[default]
     Stdio,
     #[serde(rename = "http")]
     Http,
 }
 
-impl Default for ServerMode {
-    fn default() -> Self {
-        Self::Stdio
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ServerConfig {
     #[serde(default = "default_port")]
     pub port: u16,
@@ -115,7 +105,7 @@ fn default_version() -> String {
     VERSION.to_string()
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct LoggingConfig {
     #[serde(default = "default_log_level")]
     pub level: String,
@@ -144,7 +134,7 @@ fn default_true() -> bool {
 }
 
 // Add to AppConfig struct:
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
     pub server: ServerConfig,
     pub logging: LoggingConfig,
@@ -253,7 +243,8 @@ impl AppConfig {
             config.server.mode = match mode.as_str() {
                 "sse" => ServerMode::Sse,
                 "http" => ServerMode::Http,
-                "stdio" | _ => ServerMode::Stdio,
+                "stdio" => ServerMode::Stdio,
+                _ => ServerMode::Stdio, // Handle unknown modes explicitly
             };
         }
 
@@ -261,53 +252,10 @@ impl AppConfig {
     }
 }
 
-impl Default for AppConfig {
-    fn default() -> Self {
-        Self {
-            server: ServerConfig::default(),
-            logging: LoggingConfig::default(),
-            endpoint: EndpointConfig::default(),
-            swagger_file: String::new(),
-            adjustments_file: None,
-            oauth: None,
-        }
-    }
-}
 
-impl Default for ServerConfig {
-    fn default() -> Self {
-        Self {
-            port: default_port(),
-            host: default_host(),
-            timeout: default_timeout(),
-            mode: ServerMode::default(),
-            name: default_name(),
-            version: default_version(),
-        }
-    }
-}
 
-impl Default for LoggingConfig {
-    fn default() -> Self {
-        Self {
-            level: default_log_level(),
-            format: default_log_format(),
-            color: default_true(),
-            disable_stacktrace: false,
-            output_path: None,
-            append_to_file: false,
-            disable_console: false,
-        }
-    }
-}
 
-impl Default for EndpointConfig {
-    fn default() -> Self {
-        Self {
-            base_url: String::new(),
-            auth_type: AuthType::default(),
-            auth_config: HashMap::new(),
-            headers: HashMap::new(),
-        }
-    }
-}
+
+
+
+

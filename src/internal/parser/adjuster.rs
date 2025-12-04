@@ -31,7 +31,7 @@ impl Adjuster {
         info!("Loading adjustments from file: {}", file_path);
 
         // Check if file exists first
-        if !fs::metadata(file_path).is_ok() {
+        if fs::metadata(file_path).is_err() {
             warn!("Adjustments file not found: {}", file_path);
             return Ok(()); // Return Ok if file doesn't exist (matching Go behavior)
         }

@@ -15,7 +15,7 @@ use tracing::{error, info};
 
 use crate::internal::config::{AppConfig, AuthType, ServerMode};
 use crate::internal::parser::adjuster::Adjuster;
-use crate::internal::parser::parser::SwaggerParser;
+use crate::internal::parser::_parser::SwaggerParser;
 use crate::internal::parser::types::Parser;
 use crate::internal::requester::HttpRequester;
 use crate::internal::server::tool::ToolHandler;
@@ -88,8 +88,8 @@ impl ServerHandler for Server {
             protocol_version: ProtocolVersion::V_2024_11_05,
             capabilities: ServerCapabilities::builder().enable_tools().build(),
             server_info: Implementation {
-                name: self.config.server.name.clone().into(),
-                version: self.config.server.version.clone().into(),
+                name: self.config.server.name.clone(),
+                version: self.config.server.version.clone(),
                 icons: None,
                 title: None,
                 website_url: None,

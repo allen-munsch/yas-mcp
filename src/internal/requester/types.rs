@@ -29,7 +29,7 @@ pub struct RouteConfig {
 }
 
 /// MethodConfig holds method-specific configurations
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MethodConfig {
     /// For GET requests
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -75,12 +75,4 @@ impl RouteConfig {
     }
 }
 
-impl Default for MethodConfig {
-    fn default() -> Self {
-        Self {
-            query_params: Vec::new(),
-            form_fields: Vec::new(),
-            file_upload: None,
-        }
-    }
-}
+

@@ -1,7 +1,7 @@
 pub mod oauth2;
 // pub mod providers;  // Comment out for now if not implemented
 
-use crate::internal::config::config::OAuthConfig;
+use crate::internal::config::_config::OAuthConfig;
 use anyhow::{anyhow, Result};
 
 /// Create provider-specific OAuth2 configuration

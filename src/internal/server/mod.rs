@@ -1,7 +1,7 @@
 pub mod handler;
-pub mod server;
+pub mod _server;
 pub mod tool;
 
 // Re-export main types
-pub use server::create_server;
-pub use server::Server;
+pub use _server::create_server;
+pub use _server::Server;

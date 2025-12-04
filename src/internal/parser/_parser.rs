@@ -81,7 +81,7 @@ impl SwaggerParser {
         let path = path.trim_start_matches('/');
         let path = path.replace('/', "_");
         // Keep parameter names but make them distinct
-        let path = path.replace('{', "__").replace('}', "__");
+        let path = path.replace(['{', '}'], "__");
         format!("{}_{}", method.to_lowercase(), path).to_lowercase()
     }
 
@@ -265,10 +265,8 @@ impl SwaggerParser {
     /// Get the first schema from a response
     fn get_first_response_schema(response: &openapiv3::Response) -> Option<Schema> {
         for (_, media_type) in &response.content {
-            if let Some(schema_ref) = &media_type.schema {
-                if let ReferenceOr::Item(schema) = schema_ref {
-                    return Some(schema.clone());
-                }
+            if let Some(ReferenceOr::Item(schema)) = &media_type.schema {
+                return Some(schema.clone());
             }
         }
         None
@@ -293,10 +291,8 @@ impl SwaggerParser {
 
         // Try to find the first schema in any content type
         for (_, media_type) in content {
-            if let Some(schema_ref) = &media_type.schema {
-                if let ReferenceOr::Item(schema) = schema_ref {
-                    return (Some(schema.clone()), request_body.required);
-                }
+            if let Some(ReferenceOr::Item(schema)) = &media_type.schema {
+                return (Some(schema.clone()), request_body.required);
             }
         }
 
@@ -524,11 +520,10 @@ impl SwaggerParser {
         let responses = &operation.responses;
         for response in responses.responses.values() {
             if let ReferenceOr::Item(response) = response {
-                for content_type in response.content.keys() {
+                if let Some(content_type) = response.content.keys().next() {
                     headers.insert("Accept".to_string(), content_type.clone());
                     break;
                 }
-                break;
             }
         }
 

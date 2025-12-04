@@ -1,2 +1,2 @@
-pub mod config;
-pub use config::*;
+pub mod _config;
+pub use _config::*;

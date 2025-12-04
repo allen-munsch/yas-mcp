@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tracing::info;
 
-use crate::internal::config::config::EndpointConfig;
+use crate::internal::config::_config::EndpointConfig;
 use crate::internal::requester::RouteExecutor;
 
 /// HTTP response structure

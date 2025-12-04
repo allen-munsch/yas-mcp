@@ -1,4 +1,4 @@
-use crate::internal::config::config::{AppConfig, ServerMode};
+use crate::internal::config::_config::{AppConfig, ServerMode};
 use clap::{Arg, Command};
 
 pub fn build_cli() -> Command {
