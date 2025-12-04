@@ -65,9 +65,9 @@ jobs:
         run: cargo build --release
       - name: Check binary
         run: |
-          if [ -f "./target/release/openapi-mcp" ]; then
+          if [ -f "./target/release/yas-mcp" ]; then
             echo "✅ Binary built successfully"
-            ./target/release/openapi-mcp --help || true
+            ./target/release/yas-mcp --help || true
           else
             echo "❌ Binary not found"
             exit 1

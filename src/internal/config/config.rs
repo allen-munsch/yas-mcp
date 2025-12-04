@@ -171,7 +171,7 @@ impl AppConfig {
             .add_source(File::with_name("/config/config").required(false))
             // Environment variables
             .add_source(
-                config::Environment::with_prefix("OPENAPI_MCP")
+                config::Environment::with_prefix("YAS_MCP")
                     .try_parsing(true)
                     .separator("_")
                     .list_separator(" "),

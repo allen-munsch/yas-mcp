@@ -1,6 +1,6 @@
 use tracing::{error, info};
-use openapi_mcp::cli::{build_cli, parse_config};
-use openapi_mcp::internal::server::create_server;
+use yas_mcp::cli::{build_cli, parse_config};
+use yas_mcp::internal::server::create_server;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -15,13 +15,13 @@ async fn main() -> anyhow::Result<()> {
     };
 
     // Initialize logging
-    if let Err(e) = openapi_mcp::internal::logger::init_logger(&config.logging) {
+    if let Err(e) = yas_mcp::internal::logger::init_logger(&config.logging) {
         eprintln!("Failed to initialize logger: {}", e);
         std::process::exit(1);
     }
 
     info!("Starting OpenAPI MCP Server");
-    info!("Version: {}", openapi_mcp::internal::config::get_version_info());
+    info!("Version: {}", yas_mcp::internal::config::get_version_info());
     info!("Mode: {:?}", config.server.mode);
     info!("OpenAPI file: {}", config.swagger_file);
 

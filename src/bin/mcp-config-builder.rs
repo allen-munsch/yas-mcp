@@ -1,5 +1,5 @@
 use clap::{Arg, Command};
-use openapi_mcp::internal::config;
+use yas_mcp::internal::config;
 
 fn main() -> anyhow::Result<()> {
     // Leak the version string to get a 'static lifetime

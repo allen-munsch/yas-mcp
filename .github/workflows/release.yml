@@ -31,7 +31,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            target/release/openapi-mcp
+            target/release/yas-mcp
             README.md
             LICENSE
           generate_release_notes: true
