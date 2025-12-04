@@ -1,18 +1,18 @@
 // src/internal/server/handler/http.rs
 
 use axum::{
-    Router,
-    routing::get,
-    http::{Request, StatusCode},  // Removed HeaderMap
-    middleware::{self, Next},
-    response::IntoResponse,
     body::Body,
     // Removed extract::State
+    http::{Request, StatusCode}, // Removed HeaderMap
+    middleware::{self, Next},
+    response::IntoResponse,
+    routing::get,
+    Router,
 };
 // Removed std::sync::Arc;
 use tower::ServiceBuilder;
 use tower_http::cors::CorsLayer;
-use tracing::{info, debug};  // Removed warn
+use tracing::{debug, info}; // Removed warn
 
 /// Handler manages HTTP request handling and middleware configuration
 pub struct Handler {
@@ -32,7 +32,7 @@ impl Handler {
             .layer(
                 ServiceBuilder::new()
                     .layer(middleware::from_fn(Self::log_requests))
-                    .layer(CorsLayer::permissive())
+                    .layer(CorsLayer::permissive()),
             );
 
         // Add authentication routes if enabled
@@ -43,7 +43,10 @@ impl Handler {
             info!("Authentication routes registered");
         }
 
-        info!("HTTP handler created with auth enabled: {}", self.auth_enabled);
+        info!(
+            "HTTP handler created with auth enabled: {}",
+            self.auth_enabled
+        );
         router
     }
 
@@ -62,11 +65,11 @@ impl Handler {
     /// Authentication middleware
     async fn auth_middleware(
         request: Request<Body>,
-        next: Next,  // Removed <Body> generic
+        next: Next, // Removed <Body> generic
     ) -> Result<impl IntoResponse, (StatusCode, String)> {
         // Extract and validate authentication headers
         let headers = request.headers();
-        
+
         // Check for Authorization header
         if let Some(auth_header) = headers.get("authorization") {
             if let Ok(auth_str) = auth_header.to_str() {
@@ -85,7 +88,7 @@ impl Handler {
     /// Middleware to log HTTP requests
     async fn log_requests(
         request: Request<Body>,
-        next: Next,  // Removed <Body> generic
+        next: Next, // Removed <Body> generic
     ) -> Result<impl IntoResponse, (StatusCode, String)> {
         let method = request.method().clone();
         let uri = request.uri().clone();

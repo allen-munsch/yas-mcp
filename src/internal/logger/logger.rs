@@ -7,7 +7,7 @@ use tracing_subscriber::{
     fmt::{self},
     layer::SubscriberExt,
     util::SubscriberInitExt,
-    EnvFilter,  // Directly import EnvFilter
+    EnvFilter, // Directly import EnvFilter
 };
 
 use crate::internal::config::LoggingConfig;
@@ -15,8 +15,8 @@ use crate::internal::config::LoggingConfig;
 /// Initialize the global logger with the given configuration
 pub fn init_logger(cfg: &LoggingConfig) -> anyhow::Result<()> {
     // Build filter using EnvFilter (no feature flags needed)
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(cfg.level.clone()));
+    let filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(cfg.level.clone()));
 
     // Warn if JSON format is requested (requires feature)
     if cfg.format == "json" {
@@ -29,7 +29,7 @@ pub fn init_logger(cfg: &LoggingConfig) -> anyhow::Result<()> {
         (Some(output_path), false) => {
             let log_file = create_log_file(output_path, cfg.append_to_file)?;
             let file_writer = NonBlockingFileWriter::new(log_file);
-            
+
             tracing_subscriber::registry()
                 .with(filter)
                 .with(
@@ -38,7 +38,7 @@ pub fn init_logger(cfg: &LoggingConfig) -> anyhow::Result<()> {
                         .with_level(true)
                         .with_target(true)
                         .with_thread_ids(false)
-                        .with_thread_names(false)
+                        .with_thread_names(false),
                 )
                 .with(
                     fmt::layer()
@@ -47,7 +47,7 @@ pub fn init_logger(cfg: &LoggingConfig) -> anyhow::Result<()> {
                         .with_level(true)
                         .with_target(true)
                         .with_thread_ids(false)
-                        .with_thread_names(false)
+                        .with_thread_names(false),
                 )
                 .init();
         }
@@ -55,7 +55,7 @@ pub fn init_logger(cfg: &LoggingConfig) -> anyhow::Result<()> {
         (Some(output_path), true) => {
             let log_file = create_log_file(output_path, cfg.append_to_file)?;
             let file_writer = NonBlockingFileWriter::new(log_file);
-            
+
             tracing_subscriber::registry()
                 .with(filter)
                 .with(
@@ -65,7 +65,7 @@ pub fn init_logger(cfg: &LoggingConfig) -> anyhow::Result<()> {
                         .with_level(true)
                         .with_target(true)
                         .with_thread_ids(false)
-                        .with_thread_names(false)
+                        .with_thread_names(false),
                 )
                 .init();
         }
@@ -79,15 +79,13 @@ pub fn init_logger(cfg: &LoggingConfig) -> anyhow::Result<()> {
                         .with_level(true)
                         .with_target(true)
                         .with_thread_ids(false)
-                        .with_thread_names(false)
+                        .with_thread_names(false),
                 )
                 .init();
         }
         // No output (shouldn't happen, but handle it)
         (None, true) => {
-            tracing_subscriber::registry()
-                .with(filter)
-                .init();
+            tracing_subscriber::registry().with(filter).init();
         }
     }
 
@@ -97,7 +95,7 @@ pub fn init_logger(cfg: &LoggingConfig) -> anyhow::Result<()> {
 /// Create or open log file based on configuration
 fn create_log_file(path: &str, append: bool) -> anyhow::Result<fs::File> {
     let path = Path::new(path);
-    
+
     // Ensure directory exists
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;

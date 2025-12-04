@@ -1,12 +1,12 @@
 // src/internal/requester/http_requester.rs
 
-use std::collections::HashMap;
-use std::time::Duration;
-use std::sync::Arc;
+use anyhow::{anyhow, Context, Result};
 use reqwest::Client;
-use anyhow::{Result, anyhow, Context};
-use tracing::info;
 use serde_json::Value;
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::Duration;
+use tracing::info;
 
 use crate::internal::config::config::EndpointConfig;
 use crate::internal::requester::RouteExecutor;
@@ -50,12 +50,15 @@ impl HttpRequester {
     }
 
     /// Build a route executor for a specific route configuration
-    pub fn build_route_executor(&self, config: &crate::internal::requester::RouteConfig) -> Result<RouteExecutor> {
+    pub fn build_route_executor(
+        &self,
+        config: &crate::internal::requester::RouteConfig,
+    ) -> Result<RouteExecutor> {
         let base_url = self.service_cfg.base_url.clone();
         let method = config.method.clone();
         let path = config.path.clone();
         let mut headers = config.headers.clone();
-        
+
         // Add service-level headers
         for (key, value) in &self.service_cfg.headers {
             headers.entry(key.clone()).or_insert(value.clone());
@@ -70,7 +73,7 @@ impl HttpRequester {
             let path = path.clone();
             let headers = headers.clone();
             let client = client.clone();
-            
+
             // Move the string into the async block to fix lifetime issues
             let params_json = params_json.to_string();
 
@@ -130,7 +133,9 @@ impl HttpRequester {
                 info!("Executing request: {} {}", method, url);
 
                 // Execute request
-                let response = request_builder.send().await
+                let response = request_builder
+                    .send()
+                    .await
                     .context("Failed to execute HTTP request")?;
 
                 Self::process_response(response).await
@@ -143,17 +148,23 @@ impl HttpRequester {
     /// Process the HTTP response into our standard format
     async fn process_response(response: reqwest::Response) -> Result<HttpResponse> {
         let status_code = response.status().as_u16();
-        
+
         // Clone headers before consuming the response
-        let headers_map: HashMap<String, String> = response.headers()
+        let headers_map: HashMap<String, String> = response
+            .headers()
             .iter()
             .filter_map(|(key, value)| {
-                value.to_str().ok().map(|v| (key.as_str().to_string(), v.to_string()))
+                value
+                    .to_str()
+                    .ok()
+                    .map(|v| (key.as_str().to_string(), v.to_string()))
             })
             .collect();
-        
+
         // Read response body
-        let body = response.bytes().await
+        let body = response
+            .bytes()
+            .await
             .context("Failed to read response body")?
             .to_vec();
 
@@ -195,7 +206,9 @@ impl HttpRequester {
             }
         }
 
-        let response = request_builder.send().await
+        let response = request_builder
+            .send()
+            .await
             .context("Failed to execute HTTP request")?;
 
         Self::process_response(response).await

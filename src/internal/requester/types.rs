@@ -1,12 +1,19 @@
 // src/internal/requester/types.rs
 
+use super::http_requester::HttpResponse;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use super::http_requester::HttpResponse;
 
 // Change RouteExecutor to be async
-pub type RouteExecutor = Arc<dyn Fn(&str) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<HttpResponse, anyhow::Error>> + Send>> + Send + Sync>;
+pub type RouteExecutor = Arc<
+    dyn Fn(
+            &str,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = Result<HttpResponse, anyhow::Error>> + Send>,
+        > + Send
+        + Sync,
+>;
 
 /// RouteConfig holds the configuration for a specific route
 #[derive(Debug, Clone, Serialize, Deserialize)]

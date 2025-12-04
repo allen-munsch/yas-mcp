@@ -1,5 +1,5 @@
-use std::io::Read;
 use anyhow::Result;
+use std::io::Read;
 
 // Assuming we'll create these modules later
 use crate::internal::requester::RouteConfig;
@@ -18,12 +18,12 @@ pub struct RouteTool {
 pub trait Parser: Send + Sync {
     /// Init parses a Swagger/OpenAPI specification from a file
     fn init(&mut self, openapi_spec: &str, adjustments_file: Option<&str>) -> Result<()>;
-    
+
     /// ParseReader parses a Swagger/OpenAPI specification from a reader
     /// Note: Removed generic to make trait dyn-compatible
     /// Use Box<dyn Read> instead of generic R: Read
     fn parse_reader(&mut self, reader: Box<dyn Read>) -> Result<()>;
-    
+
     /// GetRouteTools returns the parsed route tools
     fn get_route_tools(&self) -> &[RouteTool];
 }

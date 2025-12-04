@@ -1,17 +1,17 @@
 // src/internal/parser/parser.rs
 
+use anyhow::{anyhow, Context, Result};
+use openapiv3::{OpenAPI, Operation, Parameter, ReferenceOr, Schema, SchemaKind, Type};
+use serde_json::Map;
 use std::collections::HashMap;
 use std::fs;
 use std::io::Read;
-use anyhow::{Result, anyhow, Context};
-use openapiv3::{OpenAPI, Operation, Parameter, ReferenceOr, Schema, SchemaKind, Type};
-use tracing::{info, warn};
-use serde_json::Map;
 use std::sync::Arc;
+use tracing::{info, warn};
 
-use crate::internal::requester::{RouteConfig, MethodConfig};
-use super::types::{Parser, RouteTool};
 use super::adjuster::Adjuster;
+use super::types::{Parser, RouteTool};
+use crate::internal::requester::{MethodConfig, RouteConfig};
 
 /// SwaggerParser parses Swagger specifications and generates route configurations
 pub struct SwaggerParser {
@@ -47,21 +47,23 @@ impl SwaggerParser {
 
         // For now, skip OpenAPI 2.0 conversion to keep it simple
         warn!("OpenAPI 2.0 support temporarily disabled. Please use OpenAPI 3.0 specifications.");
-        Err(anyhow!("Failed to parse OpenAPI 3.0 spec from provided data"))
+        Err(anyhow!(
+            "Failed to parse OpenAPI 3.0 spec from provided data"
+        ))
     }
 
     fn generate_tool(&self, route: &RouteConfig) -> rmcp::model::Tool {
         // Create a normalized tool name
         let tool_name = Self::normalize_tool_name(&route.path, &route.method);
-        
+
         let description = format!("{} {} - {}", route.method, route.path, route.description);
-        
+
         // Create input schema based on route parameters
         let input_schema = self.create_input_schema(route);
-        
+
         // Create output schema from responses
         let output_schema = self.create_output_schema(route);
-        
+
         rmcp::model::Tool {
             name: tool_name.into(),
             description: Some(description.into()),
@@ -96,7 +98,7 @@ impl SwaggerParser {
                 serde_json::json!({
                     "type": "string",
                     "description": format!("Path parameter: {}", param)
-                })
+                }),
             );
         }
         required.extend(path_params);
@@ -112,7 +114,7 @@ impl SwaggerParser {
                     serde_json::json!({
                         "type": "string",
                         "description": format!("Query parameter: {}", param)
-                    })
+                    }),
                 );
             }
         }
@@ -125,26 +127,43 @@ impl SwaggerParser {
         }
 
         let mut schema = Map::new();
-        schema.insert("type".to_string(), serde_json::Value::String("object".to_string()));
-        
+        schema.insert(
+            "type".to_string(),
+            serde_json::Value::String("object".to_string()),
+        );
+
         if !properties.is_empty() {
-            schema.insert("properties".to_string(), serde_json::Value::Object(properties));
+            schema.insert(
+                "properties".to_string(),
+                serde_json::Value::Object(properties),
+            );
         }
-        
+
         if !required.is_empty() {
-            schema.insert("required".to_string(), serde_json::Value::Array(
-                required.into_iter().map(serde_json::Value::String).collect()
-            ));
+            schema.insert(
+                "required".to_string(),
+                serde_json::Value::Array(
+                    required
+                        .into_iter()
+                        .map(serde_json::Value::String)
+                        .collect(),
+                ),
+            );
         }
-        
+
         schema
     }
 
     /// Get parameter schema with proper type information
-    fn get_parameter_schema(&self, route: &RouteConfig, param_name: &str, param_type: &str) -> Option<serde_json::Value> {
+    fn get_parameter_schema(
+        &self,
+        route: &RouteConfig,
+        param_name: &str,
+        param_type: &str,
+    ) -> Option<serde_json::Value> {
         let doc = self.doc.as_ref()?;
         let path_item = doc.paths.paths.get(&route.path)?;
-        
+
         let path_item = match path_item {
             ReferenceOr::Item(item) => item,
             ReferenceOr::Reference { .. } => return None,
@@ -163,9 +182,15 @@ impl SwaggerParser {
         for param in &operation.parameters {
             if let ReferenceOr::Item(param) = param {
                 let param_data = match param {
-                    Parameter::Query { parameter_data, .. } if param_type == "query" => parameter_data,
-                    Parameter::Path { parameter_data, .. } if param_type == "path" => parameter_data,
-                    Parameter::Header { parameter_data, .. } if param_type == "header" => parameter_data,
+                    Parameter::Query { parameter_data, .. } if param_type == "query" => {
+                        parameter_data
+                    }
+                    Parameter::Path { parameter_data, .. } if param_type == "path" => {
+                        parameter_data
+                    }
+                    Parameter::Header { parameter_data, .. } if param_type == "header" => {
+                        parameter_data
+                    }
                     _ => continue,
                 };
 
@@ -180,7 +205,10 @@ impl SwaggerParser {
     }
 
     /// Convert ParameterData to JSON Schema
-    fn parameter_data_to_json_schema(&self, param_data: &openapiv3::ParameterData) -> serde_json::Value {
+    fn parameter_data_to_json_schema(
+        &self,
+        param_data: &openapiv3::ParameterData,
+    ) -> serde_json::Value {
         // For now, use string as default - in future, extract from param_data.format
         serde_json::json!({
             "type": "string",
@@ -220,7 +248,10 @@ impl SwaggerParser {
                         let json_schema = Self::schema_to_json_schema(&schema);
                         if let serde_json::Value::Object(mut map) = json_schema {
                             // Add status code info
-                            map.insert("http_status".to_string(), serde_json::Value::Number(status_code.into()));
+                            map.insert(
+                                "http_status".to_string(),
+                                serde_json::Value::Number(status_code.into()),
+                            );
                             return Some(map);
                         }
                     }
@@ -249,7 +280,7 @@ impl SwaggerParser {
             Some(rb) => rb,
             None => return (None, false),
         };
-        
+
         let request_body = match request_body {
             ReferenceOr::Item(rb) => rb,
             ReferenceOr::Reference { .. } => return (None, false),
@@ -271,11 +302,11 @@ impl SwaggerParser {
 
         (None, request_body.required)
     }
-    
+
     /// Get body schema for a route
     fn get_body_schema(&self, route: &RouteConfig) -> Option<serde_json::Value> {
         let doc = self.doc.as_ref()?;
-        
+
         // Get the path item
         let path_item = doc.paths.paths.get(&route.path)?;
         let path_item = match path_item {
@@ -293,7 +324,7 @@ impl SwaggerParser {
         let (schema, _required) = Self::get_first_body_schema(operation);
         schema.map(|s| Self::schema_to_json_schema(&s))
     }
- 
+
     /// Convert OpenAPI schema to JSON schema
     fn schema_to_json_schema(schema: &Schema) -> serde_json::Value {
         match &schema.schema_kind {
@@ -301,19 +332,30 @@ impl SwaggerParser {
                 let mut properties = serde_json::Map::new();
                 for (prop_name, prop_schema) in &object_type.properties {
                     if let ReferenceOr::Item(prop_schema) = prop_schema {
-                        properties.insert(
-                            prop_name.clone(),
-                            Self::schema_to_json_schema(prop_schema)
-                        );
+                        properties
+                            .insert(prop_name.clone(), Self::schema_to_json_schema(prop_schema));
                     }
                 }
                 let mut result = serde_json::Map::new();
-                result.insert("type".to_string(), serde_json::Value::String("object".to_string()));
-                result.insert("properties".to_string(), serde_json::Value::Object(properties));
+                result.insert(
+                    "type".to_string(),
+                    serde_json::Value::String("object".to_string()),
+                );
+                result.insert(
+                    "properties".to_string(),
+                    serde_json::Value::Object(properties),
+                );
                 if !object_type.required.is_empty() {
-                    result.insert("required".to_string(), serde_json::Value::Array(
-                        object_type.required.iter().map(|s| serde_json::Value::String(s.clone())).collect()
-                    ));
+                    result.insert(
+                        "required".to_string(),
+                        serde_json::Value::Array(
+                            object_type
+                                .required
+                                .iter()
+                                .map(|s| serde_json::Value::String(s.clone()))
+                                .collect(),
+                        ),
+                    );
                 }
                 serde_json::Value::Object(result)
             }
@@ -331,7 +373,7 @@ impl SwaggerParser {
             }
             SchemaKind::Type(Type::Integer(_)) => {
                 serde_json::json!({
-                    "type": "integer", 
+                    "type": "integer",
                     "description": schema.schema_data.description,
                 })
             }
@@ -343,14 +385,20 @@ impl SwaggerParser {
             }
             SchemaKind::Type(Type::Array(array_type)) => {
                 // Fixed: items_box is already ReferenceOr<Box<Schema>>, not Box<ReferenceOr<Schema>>
-                let items = array_type.items.as_ref().map(|items_ref_or| {
-                    // Match directly on the ReferenceOr without calling as_ref()
-                    match items_ref_or {
-                        ReferenceOr::Item(item_schema) => Self::schema_to_json_schema(item_schema),
-                        ReferenceOr::Reference { .. } => serde_json::json!({})
-                    }
-                }).unwrap_or(serde_json::json!({}));
-                
+                let items = array_type
+                    .items
+                    .as_ref()
+                    .map(|items_ref_or| {
+                        // Match directly on the ReferenceOr without calling as_ref()
+                        match items_ref_or {
+                            ReferenceOr::Item(item_schema) => {
+                                Self::schema_to_json_schema(item_schema)
+                            }
+                            ReferenceOr::Reference { .. } => serde_json::json!({}),
+                        }
+                    })
+                    .unwrap_or(serde_json::json!({}));
+
                 serde_json::json!({
                     "type": "array",
                     "items": items,
@@ -370,18 +418,28 @@ impl SwaggerParser {
     fn extract_path_params(path: &str) -> Vec<String> {
         path.split('/')
             .filter(|part| part.starts_with('{') && part.ends_with('}'))
-            .map(|part| part.trim_start_matches('{').trim_end_matches('}').to_string())
+            .map(|part| {
+                part.trim_start_matches('{')
+                    .trim_end_matches('}')
+                    .to_string()
+            })
             .collect()
     }
 
     /// Process operations from the parsed OpenAPI document
     fn process_operations(&mut self) -> Result<()> {
-        let doc = self.doc.as_ref().ok_or_else(|| anyhow!("No OpenAPI document loaded"))?;
+        let doc = self
+            .doc
+            .as_ref()
+            .ok_or_else(|| anyhow!("No OpenAPI document loaded"))?;
 
         info!("Processing operations from OpenAPI document");
-        
+
         // Debug: Check adjuster state
-        info!("Adjuster routes count: {}", self.adjuster.get_routes_count());
+        info!(
+            "Adjuster routes count: {}",
+            self.adjuster.get_routes_count()
+        );
         if self.adjuster.get_routes_count() > 0 {
             info!("Adjuster is configured to filter routes");
         } else {
@@ -389,7 +447,7 @@ impl SwaggerParser {
         }
 
         info!("Total paths in document: {}", doc.paths.paths.len());
-        
+
         if doc.paths.paths.is_empty() {
             warn!("No paths found in OpenAPI document!");
             return Ok(());
@@ -397,7 +455,7 @@ impl SwaggerParser {
 
         for (path, path_item) in doc.paths.iter() {
             info!("Found path: {}", path);
-            
+
             let path_item = match path_item {
                 ReferenceOr::Item(item) => {
                     info!("  Path item is direct reference");
@@ -420,22 +478,24 @@ impl SwaggerParser {
             for (method, operation) in methods {
                 if let Some(operation) = operation {
                     info!("  Found operation: {} {}", method, path);
-                    
+
                     let route_config = self.create_route_config(path, method, operation);
-                    
+
                     // Call adjuster and log the result
-                    let exists = self.adjuster.exists_in_mcp(&route_config.path, &route_config.method);
+                    let exists = self
+                        .adjuster
+                        .exists_in_mcp(&route_config.path, &route_config.method);
                     info!("  Adjuster result for {} {}: {}", method, path, exists);
-                    
+
                     if exists {
                         let tool = self.generate_tool(&route_config);
-                        self.route_tools.push(RouteTool {
-                            route_config,
-                            tool,
-                        });
+                        self.route_tools.push(RouteTool { route_config, tool });
                         info!("  ✅ Added tool for {} {}", method, path);
                     } else {
-                        info!("  ❌ Skipped tool for {} {} (filtered by adjuster)", method, path);
+                        info!(
+                            "  ❌ Skipped tool for {} {} (filtered by adjuster)",
+                            method, path
+                        );
                     }
                 }
             }
@@ -444,7 +504,6 @@ impl SwaggerParser {
         info!("Processed {} route tools", self.route_tools.len());
         Ok(())
     }
-
 
     /// Create a route configuration from a path and operation
     fn create_route_config(&self, path: &str, method: &str, operation: &Operation) -> RouteConfig {

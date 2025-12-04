@@ -1,7 +1,7 @@
-use std::fs;
-use anyhow::{Result, Context};
-use tracing::{info, debug, warn};
+use anyhow::{Context, Result};
 use serde_yaml;
+use std::fs;
+use tracing::{debug, info, warn};
 
 use crate::internal::models::adjustments::McpAdjustments;
 
@@ -29,7 +29,7 @@ impl Adjuster {
         }
 
         info!("Loading adjustments from file: {}", file_path);
-        
+
         // Check if file exists first
         if !fs::metadata(file_path).is_ok() {
             warn!("Adjustments file not found: {}", file_path);
@@ -39,8 +39,9 @@ impl Adjuster {
         let data = fs::read_to_string(file_path)
             .with_context(|| format!("Failed to read adjustments file: {}", file_path))?;
 
-        let adjustments: McpAdjustments = serde_yaml::from_str(&data)
-            .with_context(|| format!("Failed to parse YAML from adjustments file: {}", file_path))?;
+        let adjustments: McpAdjustments = serde_yaml::from_str(&data).with_context(|| {
+            format!("Failed to parse YAML from adjustments file: {}", file_path)
+        })?;
 
         debug!("Loaded adjustments: {:?}", adjustments);
         self.adjustments = adjustments;
@@ -50,8 +51,11 @@ impl Adjuster {
     /// Check if a route with the given method exists in MCP
     /// Returns true if the route/method IS in the selected routes
     pub fn exists_in_mcp(&self, route: &str, method: &str) -> bool {
-        debug!("Checking if route '{}' method '{}' exists in MCP", route, method);
-        
+        debug!(
+            "Checking if route '{}' method '{}' exists in MCP",
+            route, method
+        );
+
         // If no routes are specified in adjustments, allow ALL routes
         if self.adjustments.routes.is_empty() {
             debug!("No route filtering configured - allowing all routes");
@@ -65,13 +69,22 @@ impl Adjuster {
             // Check if this path matches (handle trailing slashes)
             let normalized_selection_path = selection.path.trim_end_matches('/');
             let normalized_route = route.trim_end_matches('/');
-            
-            debug!("Comparing: selection='{}' vs route='{}'", normalized_selection_path, normalized_route);
-            
+
+            debug!(
+                "Comparing: selection='{}' vs route='{}'",
+                normalized_selection_path, normalized_route
+            );
+
             if normalized_selection_path == normalized_route {
                 // Check if the method is in the list of selected methods
-                let method_exists = selection.methods.iter().any(|m| m.to_uppercase() == method.to_uppercase());
-                debug!("Path match found! Method '{}' exists: {}", method, method_exists);
+                let method_exists = selection
+                    .methods
+                    .iter()
+                    .any(|m| m.to_uppercase() == method.to_uppercase());
+                debug!(
+                    "Path match found! Method '{}' exists: {}",
+                    method, method_exists
+                );
                 return method_exists;
             }
         }
@@ -109,7 +122,6 @@ impl Adjuster {
     pub fn get_routes_count(&self) -> usize {
         self.adjustments.routes.len()
     }
-
 }
 
 impl Default for Adjuster {

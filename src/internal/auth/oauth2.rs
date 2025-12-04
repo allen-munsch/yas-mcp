@@ -1,8 +1,8 @@
-use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use reqwest::Client;
-use tracing::{info, debug, error};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use tracing::{debug, error, info};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuth2ProviderConfig {
@@ -51,17 +51,15 @@ impl OAuth2Client {
     /// Generate provider-specific authorization URL
     pub fn get_authorization_url(&self, state: &str) -> String {
         let scopes = self.config.scopes.join(" ");
-        let redirect_uri = self.config.redirect_uri
+        let redirect_uri = self
+            .config
+            .redirect_uri
             .as_deref()
             .unwrap_or("http://localhost:8080/oauth/callback");
-        
+
         let mut url = format!(
             "{}?response_type=code&client_id={}&redirect_uri={}&scope={}&state={}",
-            self.config.auth_url,
-            self.config.client_id,
-            redirect_uri,
-            scopes,
-            state
+            self.config.auth_url, self.config.client_id, redirect_uri, scopes, state
         );
 
         // Add provider-specific parameters
@@ -82,19 +80,33 @@ impl OAuth2Client {
             ("code", code.to_string()),
             ("client_id", self.config.client_id.clone()),
             ("client_secret", self.config.client_secret.clone()),
-            ("redirect_uri", self.config.redirect_uri
-                .clone()
-                .unwrap_or("http://localhost:8080/oauth/callback".to_string())),
+            (
+                "redirect_uri",
+                self.config
+                    .redirect_uri
+                    .clone()
+                    .unwrap_or("http://localhost:8080/oauth/callback".to_string()),
+            ),
         ];
 
-        debug!("Exchanging OAuth2 code for {} at {}", self.config.provider, self.config.token_url);
-        
-        let response = self.client
+        debug!(
+            "Exchanging OAuth2 code for {} at {}",
+            self.config.provider, self.config.token_url
+        );
+
+        let response = self
+            .client
             .post(&self.config.token_url)
             .form(&params)
             .send()
             .await
-            .map_err(|e| anyhow!("Failed to exchange OAuth2 code for {}: {}", self.config.provider, e))?;
+            .map_err(|e| {
+                anyhow!(
+                    "Failed to exchange OAuth2 code for {}: {}",
+                    self.config.provider,
+                    e
+                )
+            })?;
 
         self.handle_token_response(response).await
     }
@@ -104,14 +116,25 @@ impl OAuth2Client {
         let status = response.status();
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            error!("OAuth2 token exchange failed for {}: {}", self.config.provider, error_text);
+            error!(
+                "OAuth2 token exchange failed for {}: {}",
+                self.config.provider, error_text
+            );
             return Err(anyhow!("OAuth2 token exchange failed: {}", status));
         }
 
-        let token: OAuth2Token = response.json().await
-            .map_err(|e| anyhow!("Failed to parse OAuth2 token response from {}: {}", self.config.provider, e))?;
+        let token: OAuth2Token = response.json().await.map_err(|e| {
+            anyhow!(
+                "Failed to parse OAuth2 token response from {}: {}",
+                self.config.provider,
+                e
+            )
+        })?;
 
-        info!("Successfully obtained OAuth2 access token for {}", self.config.provider);
+        info!(
+            "Successfully obtained OAuth2 access token for {}",
+            self.config.provider
+        );
         Ok(token)
     }
 
@@ -119,16 +142,28 @@ impl OAuth2Client {
     pub async fn get_user_info(&self, access_token: &str) -> Result<UserInfo> {
         let user_info_url = match &self.config.user_info_url {
             Some(url) => url,
-            None => return Err(anyhow!("No user info URL configured for {}", self.config.provider)),
+            None => {
+                return Err(anyhow!(
+                    "No user info URL configured for {}",
+                    self.config.provider
+                ))
+            }
         };
 
-        let response = self.client
+        let response = self
+            .client
             .get(user_info_url)
             .header("Authorization", format!("Bearer {}", access_token))
             .header("User-Agent", "yas-mcp") // Some providers require User-Agent
             .send()
             .await
-            .map_err(|e| anyhow!("Failed to get user info from {}: {}", self.config.provider, e))?;
+            .map_err(|e| {
+                anyhow!(
+                    "Failed to get user info from {}: {}",
+                    self.config.provider,
+                    e
+                )
+            })?;
 
         if !response.status().is_success() {
             return Err(anyhow!("Failed to get user info: {}", response.status()));
@@ -139,8 +174,13 @@ impl OAuth2Client {
 
     /// Parse user info response (provider-specific)
     async fn parse_user_info_response(&self, response: reqwest::Response) -> Result<UserInfo> {
-        let user_data: serde_json::Value = response.json().await
-            .map_err(|e| anyhow!("Failed to parse user info from {}: {}", self.config.provider, e))?;
+        let user_data: serde_json::Value = response.json().await.map_err(|e| {
+            anyhow!(
+                "Failed to parse user info from {}: {}",
+                self.config.provider,
+                e
+            )
+        })?;
 
         // Provider-specific parsing
         match self.config.provider.to_lowercase().as_str() {
@@ -177,7 +217,11 @@ impl OAuth2Client {
     fn parse_microsoft_user_info(&self, data: serde_json::Value) -> Result<UserInfo> {
         Ok(UserInfo {
             id: data["id"].as_str().unwrap_or("").to_string(),
-            email: data["mail"].as_str().or_else(|| data["userPrincipalName"].as_str()).unwrap_or("").to_string(),
+            email: data["mail"]
+                .as_str()
+                .or_else(|| data["userPrincipalName"].as_str())
+                .unwrap_or("")
+                .to_string(),
             name: data["displayName"].as_str().map(|s| s.to_string()),
             picture: None, // Microsoft Graph doesn't return profile picture by default
             provider: "microsoft".to_string(),
@@ -187,21 +231,25 @@ impl OAuth2Client {
     /// Generic fallback user info parsing
     fn parse_generic_user_info(&self, data: serde_json::Value) -> Result<UserInfo> {
         // Try common field names
-        let id = data["id"].as_str()
+        let id = data["id"]
+            .as_str()
             .or_else(|| data["sub"].as_str())
             .or_else(|| data["user_id"].as_str())
             .unwrap_or("unknown");
-            
-        let email = data["email"].as_str()
+
+        let email = data["email"]
+            .as_str()
             .or_else(|| data["mail"].as_str())
             .unwrap_or("");
 
-        let name = data["name"].as_str()
+        let name = data["name"]
+            .as_str()
             .or_else(|| data["displayName"].as_str())
             .or_else(|| data["username"].as_str())
             .map(|s| s.to_string());
 
-        let picture = data["picture"].as_str()
+        let picture = data["picture"]
+            .as_str()
             .or_else(|| data["avatar_url"].as_str())
             .or_else(|| data["photoURL"].as_str())
             .map(|s| s.to_string());
@@ -224,12 +272,19 @@ impl OAuth2Client {
             ("client_secret", &self.config.client_secret),
         ];
 
-        let response = self.client
+        let response = self
+            .client
             .post(&self.config.token_url)
             .form(&params)
             .send()
             .await
-            .map_err(|e| anyhow!("Failed to refresh OAuth2 token for {}: {}", self.config.provider, e))?;
+            .map_err(|e| {
+                anyhow!(
+                    "Failed to refresh OAuth2 token for {}: {}",
+                    self.config.provider,
+                    e
+                )
+            })?;
 
         self.handle_token_response(response).await
     }

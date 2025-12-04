@@ -23,7 +23,7 @@ pub struct RouteSelection {
 pub struct McpAdjustments {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub descriptions: Vec<RouteDescription>,
-    
+
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub routes: Vec<RouteSelection>,
 }

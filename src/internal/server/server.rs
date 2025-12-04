@@ -1,25 +1,22 @@
 // src/internal/server/server.rs
 
-use std::process;
+use anyhow::{Context, Result};
+use rmcp::{
+    model::*,
+    service::RequestContext,
+    transport::sse_server::{SseServer, SseServerConfig},
+    ErrorData as McpError, RoleServer, ServerHandler, ServiceExt,
+};
 use std::collections::HashMap;
+use std::process;
 use std::sync::Arc;
 use tokio::signal;
-use anyhow::{Result, Context};
-use tracing::{info, error};
-use rmcp::{
-    model::*, 
-    service::RequestContext,
-    ServerHandler,
-    RoleServer,
-    ErrorData as McpError,
-    ServiceExt,
-    transport::sse_server::{SseServer, SseServerConfig},
-};
+use tracing::{error, info};
 
-use crate::internal::config::{AppConfig, ServerMode, AuthType};
-use crate::internal::parser::types::Parser;
-use crate::internal::parser::parser::SwaggerParser;
+use crate::internal::config::{AppConfig, AuthType, ServerMode};
 use crate::internal::parser::adjuster::Adjuster;
+use crate::internal::parser::parser::SwaggerParser;
+use crate::internal::parser::types::Parser;
 use crate::internal::requester::HttpRequester;
 use crate::internal::server::tool::ToolHandler;
 
@@ -43,7 +40,7 @@ impl ServerHandler for Server {
     ) -> Result<ListToolsResult, McpError> {
         let tool_handler = self.tool_handler.lock().await;
         let tools = tool_handler.list_tool_metadata();
-        
+
         Ok(ListToolsResult {
             tools,
             next_cursor: None,
@@ -56,29 +53,26 @@ impl ServerHandler for Server {
         _context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         let tool_name = request.name.as_ref();
-        
+
         let tool_handler = self.tool_handler.lock().await;
         if let Some(executor) = tool_handler.get_executor(tool_name) {
             let executor = Arc::clone(executor);
             drop(tool_handler);
-            
+
             // Create a CallToolRequest from the params
             let call_request = CallToolRequest {
                 method: CallToolRequestMethod,
                 params: request,
                 extensions: Extensions::default(),
             };
-            
+
             let future = executor(call_request);
-            let result = future.await
-                .map_err(|e| {
-                    McpError {
-                        code: ErrorCode(-32600),
-                        message: e.to_string().into(),
-                        data: None,
-                    }
-                })?;
-            
+            let result = future.await.map_err(|e| McpError {
+                code: ErrorCode(-32600),
+                message: e.to_string().into(),
+                data: None,
+            })?;
+
             Ok(result)
         } else {
             Err(McpError {
@@ -92,9 +86,7 @@ impl ServerHandler for Server {
     fn get_info(&self) -> ServerInfo {
         InitializeResult {
             protocol_version: ProtocolVersion::V_2024_11_05,
-            capabilities: ServerCapabilities::builder()
-                .enable_tools()
-                .build(),
+            capabilities: ServerCapabilities::builder().enable_tools().build(),
             server_info: Implementation {
                 name: self.config.server.name.clone().into(),
                 version: self.config.server.version.clone().into(),
@@ -102,7 +94,9 @@ impl ServerHandler for Server {
                 title: None,
                 website_url: None,
             },
-            instructions: Some("OpenAPI MCP Server - exposes OpenAPI/Swagger endpoints as MCP tools".into()),
+            instructions: Some(
+                "OpenAPI MCP Server - exposes OpenAPI/Swagger endpoints as MCP tools".into(),
+            ),
         }
     }
 }
@@ -137,32 +131,44 @@ impl Server {
         info!("Loading adjustments and parsing OpenAPI spec...");
 
         let mut parser = self.parser.lock().await;
-        parser.init(&self.config.swagger_file, self.config.adjustments_file.as_deref())
+        parser
+            .init(
+                &self.config.swagger_file,
+                self.config.adjustments_file.as_deref(),
+            )
             .context("Failed to initialize parser")?;
 
         let route_tools = parser.get_route_tools().to_vec();
-        
+
         let mut tool_handler = self.tool_handler.lock().await;
-        
+
         for route_tool in route_tools {
-            let executor = self.requester.build_route_executor(&route_tool.route_config)
-                .with_context(|| format!("Failed to build executor for route: {}", route_tool.route_config.path))?;
+            let executor = self
+                .requester
+                .build_route_executor(&route_tool.route_config)
+                .with_context(|| {
+                    format!(
+                        "Failed to build executor for route: {}",
+                        route_tool.route_config.path
+                    )
+                })?;
 
             let tool_name = route_tool.tool.name.clone().into_owned();
             let handler = tool_handler.create_handler(&tool_name, executor);
             tool_handler.register_tool(&tool_name, handler.clone());
-            
+
             tool_handler.register_tool_metadata(tool_name.clone(), route_tool.tool.clone());
-            
+
             info!(
                 "Registered tool: {} {} -> {}",
-                route_tool.route_config.method,
-                route_tool.route_config.path,
-                tool_name
+                route_tool.route_config.method, route_tool.route_config.path, tool_name
             );
         }
 
-        info!("Successfully registered {} tools", tool_handler.tool_count());
+        info!(
+            "Successfully registered {} tools",
+            tool_handler.tool_count()
+        );
         Ok(())
     }
 
@@ -170,14 +176,14 @@ impl Server {
     async fn serve_stdio(&self) -> Result<()> {
         info!("Starting STDIO server with {} tools", self.tool_count());
         info!("MCP Server ready! Tools available: {}", self.tool_count());
-        
+
         // Use stdin/stdout directly with IntoTransport - this should work
         let transport = (tokio::io::stdin(), tokio::io::stdout());
         let service = self.clone().serve(transport).await?;
-        
+
         // Wait for the service to complete
         service.waiting().await?;
-        
+
         Ok(())
     }
 
@@ -186,15 +192,22 @@ impl Server {
         use axum::{
             extract::State,
             http::StatusCode,
-            response::{IntoResponse, Response, sse::{Event, KeepAlive}},
-            Json,
+            response::{
+                sse::{Event, KeepAlive},
+                IntoResponse, Response,
+            },
             routing::{get, post},
+            Json,
         };
         use serde_json::Value;
         use std::convert::Infallible;
-        
+
         let addr = format!("{}:{}", self.config.server.host, self.config.server.port);
-        info!("Starting HTTP MCP server on {} with {} tools", addr, self.tool_count());
+        info!(
+            "Starting HTTP MCP server on {} with {} tools",
+            addr,
+            self.tool_count()
+        );
 
         #[derive(Clone)]
         struct AppState {
@@ -229,32 +242,35 @@ impl Server {
             // Parse the JSON-RPC request
             let method = payload.get("method").and_then(|m| m.as_str());
             let id = payload.get("id").cloned();
-            
+
             let response = match method {
                 Some("initialize") => {
                     // Handle initialize request
                     let info = app_state.server.get_info();
-                    
+
                     // Create a new session if this is initialization
                     let new_session_id = uuid::Uuid::new_v4().to_string();
                     {
                         let mut sessions = app_state.sessions.write().await;
-                        sessions.insert(new_session_id.clone(), SessionData {
-                            created_at: std::time::Instant::now(),
-                        });
+                        sessions.insert(
+                            new_session_id.clone(),
+                            SessionData {
+                                created_at: std::time::Instant::now(),
+                            },
+                        );
                     }
-                    
+
                     let mut response = serde_json::json!({
                         "jsonrpc": "2.0",
                         "result": info,
                         "id": id
                     });
-                    
+
                     // Add session ID to response
                     if let Some(obj) = response.as_object_mut() {
                         obj.insert("sessionId".to_string(), serde_json::json!(new_session_id));
                     }
-                    
+
                     response
                 }
                 Some("tools/list") => {
@@ -277,7 +293,9 @@ impl Server {
                 }
                 Some("tools/call") => {
                     let params = payload.get("params");
-                    match params.and_then(|p| serde_json::from_value::<CallToolRequestParam>(p.clone()).ok()) {
+                    match params.and_then(|p| {
+                        serde_json::from_value::<CallToolRequestParam>(p.clone()).ok()
+                    }) {
                         Some(params) => {
                             let result = app_state.server.call_tool_simple(params).await;
                             match result {
@@ -331,7 +349,7 @@ impl Server {
                     "id": id
                 }),
             };
-            
+
             // Return response with session ID header
             let mut headers = axum::http::HeaderMap::new();
             if let Some(sid) = session_id {
@@ -339,7 +357,7 @@ impl Server {
                     headers.insert("x-session-id", header_value);
                 }
             }
-            
+
             (StatusCode::OK, headers, Json(response))
         }
 
@@ -394,19 +412,25 @@ impl Server {
             if let Some(session_id) = session_id {
                 let mut sessions = app_state.sessions.write().await;
                 sessions.remove(&session_id);
-                (StatusCode::OK, Json(serde_json::json!({
-                    "status": "session deleted"
-                })))
+                (
+                    StatusCode::OK,
+                    Json(serde_json::json!({
+                        "status": "session deleted"
+                    })),
+                )
             } else {
-                (StatusCode::BAD_REQUEST, Json(serde_json::json!({
-                    "error": "Missing session ID"
-                })))
+                (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({
+                        "error": "Missing session ID"
+                    })),
+                )
             }
         }
 
         // Create router with all endpoints
         let handler = crate::internal::server::handler::Handler::new(
-            self.config.endpoint.auth_type != AuthType::None
+            self.config.endpoint.auth_type != AuthType::None,
         );
         let health_router = handler.create_http_router();
 
@@ -417,17 +441,22 @@ impl Server {
             .with_state(state)
             .merge(health_router);
 
-        let listener = tokio::net::TcpListener::bind(&addr).await
+        let listener = tokio::net::TcpListener::bind(&addr)
+            .await
             .with_context(|| format!("Failed to bind to address: {}", addr))?;
 
         info!("HTTP MCP server listening on {}", addr);
         info!("Endpoints:");
         info!("  - POST http://{}/mcp - Main JSON-RPC endpoint", addr);
-        info!("  - GET  http://{}/sse - Server-Sent Events stream (optional)", addr);
+        info!(
+            "  - GET  http://{}/sse - Server-Sent Events stream (optional)",
+            addr
+        );
         info!("  - DELETE http://{}/session - Session cleanup", addr);
         info!("  - GET  http://{}/health - Health check", addr);
-        
-        axum::serve(listener, app).await
+
+        axum::serve(listener, app)
+            .await
             .context("HTTP server failed")?;
 
         Ok(())
@@ -436,7 +465,7 @@ impl Server {
     async fn list_tools_simple(&self) -> Result<ListToolsResult, McpError> {
         let tool_handler = self.tool_handler.lock().await;
         let tools = tool_handler.list_tool_metadata();
-        
+
         Ok(ListToolsResult {
             tools,
             next_cursor: None,
@@ -444,31 +473,31 @@ impl Server {
     }
 
     /// Simplified call_tool for HTTP mode that doesn't require RequestContext
-    async fn call_tool_simple(&self, request: CallToolRequestParam) -> Result<CallToolResult, McpError> {
+    async fn call_tool_simple(
+        &self,
+        request: CallToolRequestParam,
+    ) -> Result<CallToolResult, McpError> {
         let tool_name = request.name.as_ref();
-        
+
         let tool_handler = self.tool_handler.lock().await;
         if let Some(executor) = tool_handler.get_executor(tool_name) {
             let executor = Arc::clone(executor);
             drop(tool_handler);
-            
+
             // Create a CallToolRequest from the params
             let call_request = CallToolRequest {
                 method: CallToolRequestMethod,
                 params: request,
                 extensions: Extensions::default(),
             };
-            
+
             let future = executor(call_request);
-            let result = future.await
-                .map_err(|e| {
-                    McpError {
-                        code: ErrorCode(-32600),
-                        message: e.to_string().into(),
-                        data: None,
-                    }
-                })?;
-            
+            let result = future.await.map_err(|e| McpError {
+                code: ErrorCode(-32600),
+                message: e.to_string().into(),
+                data: None,
+            })?;
+
             Ok(result)
         } else {
             Err(McpError {
@@ -482,10 +511,15 @@ impl Server {
     /// Serve in SSE mode - use RMCP's SseServer
     async fn serve_sse(&self) -> Result<()> {
         let addr = format!("{}:{}", self.config.server.host, self.config.server.port);
-        info!("Starting SSE MCP server on {} with {} tools", addr, self.tool_count());
+        info!(
+            "Starting SSE MCP server on {} with {} tools",
+            addr,
+            self.tool_count()
+        );
 
         // Parse the bind address
-        let bind_addr: std::net::SocketAddr = addr.parse()
+        let bind_addr: std::net::SocketAddr = addr
+            .parse()
             .with_context(|| format!("Failed to parse bind address: {}", addr))?;
 
         // Create cancellation token
@@ -509,11 +543,9 @@ impl Server {
 
         // Clone self for the service factory
         let server_clone = self.clone();
-        
+
         // Connect the MCP service to the SSE server
-        let service_ct = sse_server.with_service(move || {
-            server_clone.clone()
-        });
+        let service_ct = sse_server.with_service(move || server_clone.clone());
 
         // Spawn task to serve the SSE router
         // The sse_router is already a complete Axum 0.8 router with /sse and /message
@@ -521,9 +553,9 @@ impl Server {
             let listener = tokio::net::TcpListener::bind(&bind_addr)
                 .await
                 .expect("Failed to bind listener");
-            
+
             info!("HTTP server listening on {}", bind_addr);
-            
+
             // Use the axum 0.8 serve function (via the sse_router)
             axum::serve(listener, sse_router)
                 .await
@@ -563,7 +595,9 @@ impl Server {
 
         info!(
             "Starting server in {:?} mode, version: {} with {} tools",
-            self.config.server.mode, self.config.server.version, self.tool_count()
+            self.config.server.mode,
+            self.config.server.version,
+            self.tool_count()
         );
 
         match self.config.server.mode {
@@ -596,9 +630,8 @@ impl Server {
     /// Get the number of registered tools
     pub fn tool_count(&self) -> usize {
         tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(async {
-                self.tool_handler.lock().await.tool_count()
-            })
+            tokio::runtime::Handle::current()
+                .block_on(async { self.tool_handler.lock().await.tool_count() })
         })
     }
 }
@@ -607,9 +640,9 @@ impl Server {
 pub async fn create_server(config: AppConfig) -> Result<Server> {
     let adjuster = Adjuster::new();
     let parser = Box::new(SwaggerParser::new(adjuster));
-    
-    let requester = HttpRequester::new(&config.endpoint)
-        .context("Failed to create HTTP requester")?;
+
+    let requester =
+        HttpRequester::new(&config.endpoint).context("Failed to create HTTP requester")?;
 
     Server::new(config, parser, requester).await
 }

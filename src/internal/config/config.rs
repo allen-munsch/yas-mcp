@@ -1,6 +1,6 @@
+use config::{Config, ConfigError, File};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use config::{Config, ConfigError, File};
 
 // Version information from build script - using option_env! for safety
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -22,9 +22,13 @@ pub fn get_version_info() -> String {
          Git: {} on {} ({})\n\
          Rust: {}\n\
          Target: {}",
-        VERSION, git_describe,
-        build_date, build_timestamp,
-        git_commit_hash, git_branch, git_commit_date,
+        VERSION,
+        git_describe,
+        build_date,
+        build_timestamp,
+        git_commit_hash,
+        git_branch,
+        git_commit_date,
         rustc_semver,
         cargo_target_triple
     )
@@ -95,11 +99,21 @@ pub struct ServerConfig {
     pub version: String,
 }
 
-fn default_port() -> u16 { 3000 }
-fn default_host() -> String { "127.0.0.1".to_string() }
-fn default_timeout() -> String { "30s".to_string() }
-fn default_name() -> String { "yas-mcp".to_string() }
-fn default_version() -> String { VERSION.to_string() }
+fn default_port() -> u16 {
+    3000
+}
+fn default_host() -> String {
+    "127.0.0.1".to_string()
+}
+fn default_timeout() -> String {
+    "30s".to_string()
+}
+fn default_name() -> String {
+    "yas-mcp".to_string()
+}
+fn default_version() -> String {
+    VERSION.to_string()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoggingConfig {
@@ -119,9 +133,15 @@ pub struct LoggingConfig {
     pub disable_console: bool,
 }
 
-fn default_log_level() -> String { "info".to_string() }
-fn default_log_format() -> String { "compact".to_string() }
-fn default_true() -> bool { true }
+fn default_log_level() -> String {
+    "info".to_string()
+}
+fn default_log_format() -> String {
+    "compact".to_string()
+}
+fn default_true() -> bool {
+    true
+}
 
 // Add to AppConfig struct:
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -142,7 +162,7 @@ pub struct OAuthConfig {
     pub client_secret: String,
     pub scopes: Vec<String>,
     pub allow_origins: Vec<String>,
-    
+
     // For generic providers
     pub auth_url: Option<String>,
     pub token_url: Option<String>,
@@ -190,7 +210,10 @@ impl AppConfig {
             if oauth.scopes.len() == 1 {
                 let single_scope = &oauth.scopes[0];
                 if single_scope.contains(' ') {
-                    oauth.scopes = single_scope.split_whitespace().map(|s| s.to_string()).collect();
+                    oauth.scopes = single_scope
+                        .split_whitespace()
+                        .map(|s| s.to_string())
+                        .collect();
                 }
             }
         }
@@ -198,7 +221,11 @@ impl AppConfig {
         Ok(app_config)
     }
 
-    pub fn from_args(swagger_file: String, adjustments_file: Option<String>, mode: Option<ServerMode>) -> Self {
+    pub fn from_args(
+        swagger_file: String,
+        adjustments_file: Option<String>,
+        mode: Option<ServerMode>,
+    ) -> Self {
         Self {
             swagger_file,
             adjustments_file,
@@ -212,16 +239,16 @@ impl AppConfig {
 
     pub fn load_from_args(matches: &clap::ArgMatches) -> Result<Self, ConfigError> {
         let mut config = Self::load()?;
-        
+
         // Override with CLI args if provided
         if let Some(swagger_file) = matches.get_one::<String>("swagger-file") {
             config.swagger_file = swagger_file.clone();
         }
-        
+
         if let Some(adjustments_file) = matches.get_one::<String>("adjustments-file") {
             config.adjustments_file = Some(adjustments_file.clone());
         }
-        
+
         if let Some(mode) = matches.get_one::<String>("mode") {
             config.server.mode = match mode.as_str() {
                 "sse" => ServerMode::Sse,
@@ -229,7 +256,7 @@ impl AppConfig {
                 "stdio" | _ => ServerMode::Stdio,
             };
         }
-        
+
         Ok(config)
     }
 }
