@@ -1,5 +1,4 @@
 services:
-  # OpenAPI MCP Server
   yas-mcp:
     profiles: ["mcp"]
     build:
@@ -9,34 +8,19 @@ services:
     ports:
       - "${OPENAPI_MCP_PORT:-3000}:3000"
     volumes:
-      # Mount your OpenAPI/Swagger file
       - ./${SWAGGER_FILE_PATH:?SWAGGER_FILE_PATH is required}:/app/config/swagger.yaml:ro
-      # Optional: Mount adjustments file
       - ./${ADJUSTMENTS_FILE_PATH:-./adjustments.yaml}:/app/config/adjustments.yaml:ro
     environment:
-      # Server configuration
       - OPENAPI_MCP_SERVER_MODE=${SERVER_MODE:-http}
       - OPENAPI_MCP_SERVER_HOST=0.0.0.0
       - OPENAPI_MCP_SERVER_PORT=3000
-      
-      # Endpoint configuration (the API to call)
       - OPENAPI_MCP_ENDPOINT_BASE_URL=${API_BASE_URL:-http://prism:4010}
-      
-      # Logging
       - OPENAPI_MCP_LOGGING_LEVEL=${LOG_LEVEL:-info}
       - OPENAPI_MCP_LOGGING_FORMAT=${LOG_FORMAT:-compact}
-      
-      # File paths
       - OPENAPI_MCP_SWAGGER_FILE=/app/config/swagger.yaml
       - OPENAPI_MCP_ADJUSTMENTS_FILE=/app/config/adjustments.yaml
-    command: [
-      "--swagger-file", "/app/config/swagger.yaml",
-      "--adjustments-file", "/app/config/adjustments.yaml",
-      "--endpoint", "${API_BASE_URL:-http://prism:4010}",
-      "--mode", "${SERVER_MODE:-http}",
-      "--host", "0.0.0.0",
-      "--port", "3000"
-    ]
+      - RUST_LOG=info
+    command: ["--swagger-file", "/app/config/swagger.yaml", "--adjustments-file", "/app/config/adjustments.yaml", "--endpoint", "${API_BASE_URL:-http://prism:4010}", "--mode", "${SERVER_MODE:-http}", "--host", "0.0.0.0", "--port", "3000"]
     restart: unless-stopped
     networks:
       - yas-mcp-network
@@ -46,8 +30,22 @@ services:
       timeout: 10s
       retries: 10
       start_period: 30s
+    # HARDENING
+    read_only: false
+    tmpfs:
+      - /tmp:size=64M,mode=1777
+      - /app/logs:size=32M,mode=1777
+      - /home/app:size=8M,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    user: "1000:1000"
+    mem_limit: 512m
+    memswap_limit: 512m
+    pids_limit: 100
+    cpus: 1
 
-  # Prism Mock Server (for testing) - simplified command
   prism:
     image: stoplight/prism:5
     container_name: prism-mock
@@ -65,8 +63,18 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
+    # HARDENING
+    # read_only: true
+    # tmpfs:
+    #   - /tmp:size=64M,mode=1777
+    # cap_drop:
+    #   - ALL
+    # security_opt:
+    #   - no-new-privileges:true
+    # user: "1000:1000"
+    # mem_limit: 256m
+    # pids_limit: 50
 
-  # Test Container - simplified command
   test-container:
     build:
       context: .
@@ -76,16 +84,11 @@ services:
       - yas-mcp
       - prism
     environment:
-      # Test configuration
       - MCP_SERVER_URL=http://yas-mcp:3000
       - API_BASE_URL=http://prism:4010
       - SWAGGER_FILE_PATH=${SWAGGER_FILE_PATH}
-      
-      # Logging for tests
       - RUST_LOG=debug
       - TEST_TIMEOUT=90
-      
-      # Reuse existing env vars
       - OPENAPI_MCP_PORT=${OPENAPI_MCP_PORT:-3000}
       - PRISM_PORT=${PRISM_PORT:-8080}
     networks:
@@ -93,13 +96,23 @@ services:
     volumes:
       - ./test-results:/app/test-results
       - .:/app:ro
-      - ./scripts/test-integration.sh:/app/scripts/test-integration.sh
+      - ./scripts/test-integration.sh:/app/scripts/test-integration.sh:ro
     profiles: ["test"]
     command: ["/app/scripts/test-integration.sh"]
+    # # HARDENING
+    # read_only: true
+    # tmpfs:
+    #   - /tmp:size=128M,mode=1777
+    # cap_drop:
+    #   - ALL
+    # security_opt:
+    #   - no-new-privileges:true
+    # mem_limit: 1g
+    # pids_limit: 200
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.4
-    profiles: ["auth"]  # Only start with --profile auth
+    profiles: ["auth"]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:?KEYCLOAK_ADMIN environment variable is required}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD environment variable is required}
@@ -111,7 +124,17 @@ services:
     command: start-dev
     networks:
       - yas-mcp-network
+    # # HARDENING (limited - keycloak needs more perms)
+    # cap_drop:
+    #   - ALL
+    # cap_add:
+    #   - NET_BIND_SERVICE
+    # security_opt:
+    #   - no-new-privileges:true
+    # mem_limit: 1g
+    # pids_limit: 200
 
 networks:
   yas-mcp-network:
     driver: bridge
+    internal: false  # set true if no external access needed

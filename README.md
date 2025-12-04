@@ -216,6 +216,46 @@ See the `examples/` directory for sample configurations:
 - Docker Compose configurations
 - OAuth2 setup scripts
 
+# A brief security consideration
+
+If you have not read the openapi spec that you plan to use, then you may want to run it in a sandbox:
+
+```
+bwrap \
+--tmpfs / \
+--ro-bind /usr /usr \
+--ro-bind /bin /bin \
+--ro-bind /lib /lib \
+--ro-bind /lib64 /lib64 \
+--ro-bind /lib/x86_64-linux-gnu /lib/x86_64-linux-gnu \
+--proc /proc \
+--dev-bind /dev/null /dev/null \
+--tmpfs /tmp \
+--ro-bind ~/.cargo ~/.cargo \
+--ro-bind ~/.rustup ~/.rustup \
+--ro-bind "$(pwd)" /build \
+--tmpfs /build/logs \
+--tmpfs /build/target \
+--ro-bind "$(pwd)/examples/todo-app/openapi.yaml" /config/openapi.yaml \
+--ro-bind "$(pwd)/mcp-oauth-config.yaml" /config/mcp-oauth-config.yaml \
+--setenv CC /usr/bin/x86_64-linux-gnu-gcc-11 \
+--setenv CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER /usr/bin/x86_64-linux-gnu-gcc-11 \
+--setenv PATH /usr/bin:/bin \
+--chdir /build \
+--unshare-all \
+--share-net \
+--die-with-parent \
+cargo run \
+--bin yas-mcp \
+-- \
+--config /config/mcp-oauth-config.yaml \
+--swagger-file /config/openapi.yaml \
+--mode http
+```
+
+Or, maybe in docker, or better yet don't run it at all on your machine.
+
+
 ## License
 
 See LICENSE file for details.
