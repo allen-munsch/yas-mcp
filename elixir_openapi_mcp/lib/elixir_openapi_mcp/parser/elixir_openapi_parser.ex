@@ -84,20 +84,61 @@ defmodule ElixirOpenapiMcp.Parser.ElixirOpenapiParser do
   end
 
   defp extract_input_schema(operation) do
-    # This is a placeholder. A more robust implementation would be needed here.
-    # It should extract parameters (path, query, header, cookie) and requestBody
-    %{type: :object, properties: %{}}
+    # Extract parameters (path, query, header, cookie)
+    parameters_schema =
+      operation
+      |> Map.get("parameters", [])
+      |> Enum.reduce(%{}, fn
+        %{"name" => name, "schema" => schema, "required" => required}, acc ->
+          Map.put(acc, String.to_atom(name), Map.put(schema, :required, required))
+        _, acc ->
+          acc
+      end)
+
+    # Extract request body
+    request_body_schema =
+      case Map.get(operation, "requestBody") do
+        %{"content" => content} ->
+          # Prioritize application/json, then text/plain, then others
+          case Map.get(content, "application/json") || Map.get(content, "text/plain") ||
+               hd(Map.values(content)) do
+            %{"schema" => schema} -> schema
+            _ -> %{}
+          end
+        _ -> %{}
+      end
+
+    if Map.empty?(parameters_schema) and Map.empty?(request_body_schema) do
+      %{}
+    else
+      # Combine parameters and request body into a single input schema
+      # For simplicity, we'll put all parameters and request body under a single "body" key for now
+      # A more sophisticated approach might separate them or use specific keys.
+      %{
+        type: :object,
+        properties: Map.merge(parameters_schema, request_body_schema)
+      }
+    end
   end
 
   defp extract_output_schema(operation) do
-    # This is a placeholder. A more robust implementation would be needed here.
-    # It should extract responses
-    %{type: :object, properties: %{}}
+    case Map.get(operation, "responses") do
+      %{"200" => %{"content" => content}} ->
+        case Map.get(content, "application/json") || Map.get(content, "text/plain") ||
+             hd(Map.values(content)) do
+          %{"schema" => schema} -> schema
+          _ -> %{}
+        end
+      _ ->
+        %{}
+    end
   end
 
   defp extract_parameters(operation) do
-    # This is a placeholder. A more robust implementation would be needed here.
     Map.get(operation, "parameters", [])
+    |> Enum.map(fn param ->
+      Map.take(param, ["name", "in", "required", "schema", "description"])
+    end)
   end
 
   defp load_spec(swagger_file) do
