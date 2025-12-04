@@ -1,7 +1,7 @@
 // src/internal/parser/mod.rs
 
-pub mod adjuster;
 pub mod _parser;
+pub mod adjuster;
 pub mod types;
 
 // Export the Parser trait and RouteTool from types

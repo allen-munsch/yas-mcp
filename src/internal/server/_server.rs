@@ -14,8 +14,8 @@ use tokio::signal;
 use tracing::{error, info};
 
 use crate::internal::config::{AppConfig, AuthType, ServerMode};
-use crate::internal::parser::adjuster::Adjuster;
 use crate::internal::parser::_parser::SwaggerParser;
+use crate::internal::parser::adjuster::Adjuster;
 use crate::internal::parser::types::Parser;
 use crate::internal::requester::HttpRequester;
 use crate::internal::server::tool::ToolHandler;
