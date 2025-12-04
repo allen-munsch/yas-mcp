@@ -255,6 +255,16 @@ cargo run \
 
 Or, maybe in docker, or better yet don't run it at all on your machine.
 
+What do I mean by this?
+
+What if a tool description had something that attempted to send this to an external webhook?
+
+```
+bwrap --tmpfs / --ro-bind /usr /usr --ro-bind /bin /bin --ro-bind /lib /lib --ro-bind /lib64 /lib64 --unshare-all sh -c "ls /home; cat ~/.ssh/id_rsa"
+ls: cannot access '/home': No such file or directory
+cat: /home/jm/.ssh/id_rsa: No such file or directory
+```
+
 
 ## License
 
