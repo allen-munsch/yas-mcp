@@ -2,7 +2,7 @@
 
 use anyhow::{anyhow, Context, Result};
 use openapiv3::{OpenAPI, Operation, Parameter, ReferenceOr, Schema, SchemaKind, Type};
-use serde_json::Map;
+use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::fs;
 use std::io::Read;
@@ -31,27 +31,61 @@ impl SwaggerParser {
 
     /// Detect and parse OpenAPI specification (focus on 3.0 first)
     fn detect_and_parse_openapi(&mut self, data: &[u8]) -> Result<()> {
-        // Try JSON first
-        if let Ok(doc) = serde_json::from_slice::<OpenAPI>(data) {
-            info!("Successfully parsed OpenAPI 3.0 spec as JSON");
-            self.doc = Some(doc);
-            return Ok(());
-        }
+        // 1. Parse into a generic Value first so we can manipulate it
+        // We use the "turbofish" syntax ::<Value> so the compiler knows what type we want.
+        let mut json_value: serde_json::Value = if let Ok(v) = serde_json::from_slice::<serde_json::Value>(data) {
+            v
+        } else if let Ok(v) = serde_yaml::from_slice::<serde_yaml::Value>(data) {
+            // Convert the YAML generic value to a JSON generic value
+            serde_json::to_value(v).context("Failed to convert YAML spec to JSON")?
+        } else {
+             warn!("OpenAPI 2.0 support temporarily disabled. Please use OpenAPI 3.0 specifications.");
+             return Err(anyhow!("Failed to parse spec as generic JSON or YAML"));
+        };
 
-        // Try YAML
-        if let Ok(doc) = serde_yaml::from_slice::<OpenAPI>(data) {
-            info!("Successfully parsed OpenAPI 3.0 spec as YAML");
-            self.doc = Some(doc);
-            return Ok(());
-        }
+        // 2. Sanitize the JSON to fix the "Sibling Ref" panic
+        self.sanitize_refs(&mut json_value);
 
-        // For now, skip OpenAPI 2.0 conversion to keep it simple
-        warn!("OpenAPI 2.0 support temporarily disabled. Please use OpenAPI 3.0 specifications.");
-        Err(anyhow!(
-            "Failed to parse OpenAPI 3.0 spec from provided data"
-        ))
+        // 3. Now attempt to convert the sanitized Value into the strict OpenAPI struct
+        match serde_json::from_value::<OpenAPI>(json_value) {
+            Ok(doc) => {
+                info!("Successfully parsed OpenAPI 3.0 spec");
+                self.doc = Some(doc);
+                Ok(())
+            }
+            Err(e) => {
+                warn!("Strict OpenAPI parsing failed: {}", e);
+                Err(anyhow!("Failed to parse OpenAPI 3.0 spec: {}", e))
+            }
+        }
     }
 
+    /// Recursively remove sibling fields from objects containing "$ref"
+    fn sanitize_refs(&self, value: &mut Value) {
+        match value {
+            Value::Object(map) => {
+                // If this object has a "$ref" key...
+                if map.contains_key("$ref") {
+                    // ...we must remove all other keys to satisfy openapiv3 strictness
+                    // We keep strictly only "$ref"
+                    let ref_val = map["$ref"].clone();
+                    map.clear();
+                    map.insert("$ref".to_string(), ref_val);
+                } else {
+                    // Otherwise, recurse into children
+                    for (_, v) in map.iter_mut() {
+                        self.sanitize_refs(v);
+                    }
+                }
+            }
+            Value::Array(arr) => {
+                for v in arr.iter_mut() {
+                    self.sanitize_refs(v);
+                }
+            }
+            _ => {} // Primitives don't need sanitization
+        }
+    }
     fn generate_tool(&self, route: &RouteConfig) -> rmcp::model::Tool {
         // Create a normalized tool name
         let tool_name = Self::normalize_tool_name(&route.path, &route.method);
