@@ -17,14 +17,14 @@ anyhow = "1.0"
 thiserror = "2.0"
 
 # MCP SDK
-rmcp = { version = "0.9.1", features = [
+rmcp = { version = "0.10.0", features = [
     "transport-async-rw", 
     "transport-streamable-http-server",
     "transport-streamable-http-server-session", 
     "transport-worker",
     "transport-sse-server",
     ] }
-rmcp-macros = "0.9.0"
+rmcp-macros = "0.10.0"
 schemars = "1.1"
 
 # Web/HTTP dependencies
@@ -51,7 +51,7 @@ tokio-stream = "0.1.17"
 async-stream = "0.3.6"
 tokio-util = "0.7.17"
 futures = "0.3.31"
-uuid = "1.18.1"
+uuid = "1.19.0"
 
 [build-dependencies]
 vergen = { version = "9.0.6", features = ["build", "si", "rustc", "cargo"] }
