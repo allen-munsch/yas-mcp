@@ -33,18 +33,21 @@ impl SwaggerParser {
     fn detect_and_parse_openapi(&mut self, data: &[u8]) -> Result<()> {
         // 1. Parse into a generic Value first so we can manipulate it
         // We use the "turbofish" syntax ::<Value> so the compiler knows what type we want.
-        let mut json_value: serde_json::Value = if let Ok(v) = serde_json::from_slice::<serde_json::Value>(data) {
-            v
-        } else if let Ok(v) = serde_yaml::from_slice::<serde_yaml::Value>(data) {
-            // Convert the YAML generic value to a JSON generic value
-            serde_json::to_value(v).context("Failed to convert YAML spec to JSON")?
-        } else {
-             warn!("OpenAPI 2.0 support temporarily disabled. Please use OpenAPI 3.0 specifications.");
-             return Err(anyhow!("Failed to parse spec as generic JSON or YAML"));
-        };
+        let mut json_value: serde_json::Value =
+            if let Ok(v) = serde_json::from_slice::<serde_json::Value>(data) {
+                v
+            } else if let Ok(v) = serde_yaml::from_slice::<serde_yaml::Value>(data) {
+                // Convert the YAML generic value to a JSON generic value
+                serde_json::to_value(v).context("Failed to convert YAML spec to JSON")?
+            } else {
+                warn!(
+                "OpenAPI 2.0 support temporarily disabled. Please use OpenAPI 3.0 specifications."
+            );
+                return Err(anyhow!("Failed to parse spec as generic JSON or YAML"));
+            };
 
         // 2. Sanitize the JSON to fix the "Sibling Ref" panic
-        self.sanitize_refs(&mut json_value);
+        Self::sanitize_refs(&mut json_value);
 
         // 3. Now attempt to convert the sanitized Value into the strict OpenAPI struct
         match serde_json::from_value::<OpenAPI>(json_value) {
@@ -61,7 +64,7 @@ impl SwaggerParser {
     }
 
     /// Recursively remove sibling fields from objects containing "$ref"
-    fn sanitize_refs(&self, value: &mut Value) {
+    fn sanitize_refs(value: &mut Value) {
         match value {
             Value::Object(map) => {
                 // If this object has a "$ref" key...
@@ -74,13 +77,13 @@ impl SwaggerParser {
                 } else {
                     // Otherwise, recurse into children
                     for (_, v) in map.iter_mut() {
-                        self.sanitize_refs(v);
+                        Self::sanitize_refs(v);
                     }
                 }
             }
             Value::Array(arr) => {
                 for v in arr.iter_mut() {
-                    self.sanitize_refs(v);
+                    Self::sanitize_refs(v);
                 }
             }
             _ => {} // Primitives don't need sanitization
