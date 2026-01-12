@@ -1,9 +1,9 @@
 // src/internal/server/tool/handler.rs
 
+use crate::internal::mcp::registry::{RegisteredTool, ToolRegistry};
 use anyhow::{anyhow, Result};
 use rmcp::model::{Annotated, CallToolRequest, CallToolResult, RawContent, RawTextContent, Tool};
 use serde_json::Map;
-use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::debug;
 
@@ -22,43 +22,37 @@ pub type ToolExecutor = Arc<
 /// Handler manages tool execution and authentication
 pub struct ToolHandler {
     auth_enabled: bool,
-    tools: HashMap<String, ToolExecutor>,
-    tool_metadata: HashMap<String, Tool>,
+    registry: Arc<ToolRegistry>,
 }
 
 impl ToolHandler {
     /// Create a new tool handler
-    pub fn new(auth_enabled: bool) -> Self {
+    pub fn new(auth_enabled: bool, registry: Arc<ToolRegistry>) -> Self {
         Self {
             auth_enabled,
-            tools: HashMap::new(),
-            tool_metadata: HashMap::new(),
+            registry,
         }
     }
 
     /// Register a tool with its executor
-    pub fn register_tool(&mut self, name: &str, executor: ToolExecutor) {
-        self.tools.insert(name.to_string(), executor);
-    }
-
-    /// Register tool metadata
-    pub fn register_tool_metadata(&mut self, name: String, tool: Tool) {
-        self.tool_metadata.insert(name, tool);
+    pub fn register_tool(&mut self, name: &str, metadata: Tool, executor: ToolExecutor) {
+        let registered_tool = RegisteredTool { metadata, executor };
+        self.registry.register(name.to_string(), registered_tool);
     }
 
     /// Get an executor for a tool
-    pub fn get_executor(&self, name: &str) -> Option<&ToolExecutor> {
-        self.tools.get(name)
+    pub fn get_executor(&self, name: &str) -> Option<ToolExecutor> {
+        self.registry.get(name).map(|t| t.executor.clone())
     }
 
     /// Get the number of registered tools
     pub fn tool_count(&self) -> usize {
-        self.tools.len()
+        self.registry.count()
     }
 
     /// List all registered tool metadata
     pub fn list_tool_metadata(&self) -> Vec<Tool> {
-        self.tool_metadata.values().cloned().collect()
+        self.registry.list_metadata()
     }
 
     /// Create a handler function for a specific tool
@@ -132,10 +126,10 @@ impl ToolHandler {
     fn convert_arguments_to_json(arguments: &Map<String, serde_json::Value>) -> String {
         serde_json::to_string(arguments).unwrap_or_else(|_| "{}".to_string())
     }
-}
 
-impl Default for ToolHandler {
-    fn default() -> Self {
-        Self::new(false)
+    /// Get the underlying tool registry.
+    pub fn registry(&self) -> Arc<ToolRegistry> {
+        Arc::clone(&self.registry)
     }
 }
+

@@ -6,6 +6,9 @@ edition = "2021"
 build = "build.rs"  # Add this line for build scripts
 license = "Apache-2.0"
 
+[features]
+test-utils = []
+
 [dependencies]
 tokio = { version = "1.0", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -52,7 +55,14 @@ async-stream = "0.3.6"
 tokio-util = "0.7.17"
 futures = "0.3.31"
 uuid = "1.18.1"
+regex = "1.10.4"
+chrono = { version = "0.4", features = ["serde"] }
 
 [build-dependencies]
 vergen = { version = "9.0.6", features = ["build", "si", "rustc", "cargo"] }
 anyhow = "1.0"
+
+[[test]]
+name = "stdio_protocol_tests"
+path = "tests/stdio_protocol_tests.rs"
+required-features = ["test-utils"]

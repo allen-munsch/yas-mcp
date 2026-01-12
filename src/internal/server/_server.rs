@@ -1,5 +1,7 @@
 // src/internal/server/server.rs
 
+use crate::internal::mcp::registry::ToolRegistry;
+use crate::internal::server::tool::ToolHandler;
 use anyhow::{Context, Result};
 use rmcp::{
     model::*,
@@ -18,17 +20,16 @@ use crate::internal::parser::_parser::SwaggerParser;
 use crate::internal::parser::adjuster::Adjuster;
 use crate::internal::parser::types::Parser;
 use crate::internal::requester::HttpRequester;
-use crate::internal::server::tool::ToolHandler;
 
 /// Server represents the MCP server instance that handles tool management,
 /// authentication, and request processing. It supports multiple operation modes
 /// including SSE, HTTP, and STDIO.
 #[derive(Clone)]
 pub struct Server {
-    config: AppConfig,
+    pub config: AppConfig,
     parser: Arc<tokio::sync::Mutex<Box<dyn Parser>>>,
     requester: HttpRequester,
-    tool_handler: Arc<tokio::sync::Mutex<ToolHandler>>,
+    pub tool_handler: Arc<tokio::sync::Mutex<ToolHandler>>,
 }
 
 // Implement ServerHandler trait (your existing implementation is fine)
@@ -56,7 +57,7 @@ impl ServerHandler for Server {
 
         let tool_handler = self.tool_handler.lock().await;
         if let Some(executor) = tool_handler.get_executor(tool_name) {
-            let executor = Arc::clone(executor);
+            let executor = Arc::clone(&executor);
             drop(tool_handler);
 
             // Create a CallToolRequest from the params
@@ -114,7 +115,8 @@ impl Server {
         }
 
         let auth_enabled = config.oauth.as_ref().map(|o| o.enabled).unwrap_or(false);
-        let tool_handler = ToolHandler::new(auth_enabled);
+        let registry = Arc::new(ToolRegistry::new());
+        let tool_handler = ToolHandler::new(auth_enabled, registry);
 
         let server = Self {
             config,
@@ -127,7 +129,7 @@ impl Server {
     }
 
     /// Setup tools from parsed OpenAPI specification
-    async fn setup_tools(&self) -> Result<()> {
+    pub async fn setup_tools(&self) -> Result<()> {
         info!("Loading adjustments and parsing OpenAPI spec...");
 
         let mut parser = self.parser.lock().await;
@@ -153,11 +155,13 @@ impl Server {
                     )
                 })?;
 
-            let tool_name = route_tool.tool.name.clone().into_owned();
+            let tool_name = route_tool.tool.name.clone().to_owned();
             let handler = tool_handler.create_handler(&tool_name, executor);
-            tool_handler.register_tool(&tool_name, handler.clone());
-
-            tool_handler.register_tool_metadata(tool_name.clone(), route_tool.tool.clone());
+            tool_handler.register_tool(
+                &tool_name,
+                route_tool.tool.to_owned(),
+                handler.clone(),
+            );
 
             info!(
                 "Registered tool: {} {} -> {}",
@@ -171,6 +175,7 @@ impl Server {
         );
         Ok(())
     }
+
 
     /// Serve in STDIO mode (primary MCP mode)
     async fn serve_stdio(&self) -> Result<()> {
@@ -481,7 +486,7 @@ impl Server {
 
         let tool_handler = self.tool_handler.lock().await;
         if let Some(executor) = tool_handler.get_executor(tool_name) {
-            let executor = Arc::clone(executor);
+            let executor = Arc::clone(&executor);
             drop(tool_handler);
 
             // Create a CallToolRequest from the params
@@ -633,6 +638,11 @@ impl Server {
             tokio::runtime::Handle::current()
                 .block_on(async { self.tool_handler.lock().await.tool_count() })
         })
+    }
+    /// Get the underlying tool registry.
+    pub async fn get_tool_registry(&self) -> Arc<ToolRegistry> {
+        let tool_handler_guard = self.tool_handler.lock().await;
+        tool_handler_guard.registry()
     }
 }
 
