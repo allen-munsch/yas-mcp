@@ -53,21 +53,21 @@ pub fn call_tool_request(
 }
 
 /// Ping request
-pub fn ping_request(id: i32) -> serde_json::Value {
-    json!({
-        "jsonrpc": "2.0",
-        "id": id,
-        "method": "ping"
-    })
-}
+// pub fn ping_request(id: i32) -> serde_json::Value {
+//     json!({
+//         "jsonrpc": "2.0",
+//         "id": id,
+//         "method": "ping"
+//     })
+// }
 
 /// Malformed request (missing jsonrpc)
-pub fn malformed_request() -> serde_json::Value {
-    json!({
-        "id": 999,
-        "method": "initialize"
-    })
-}
+// pub fn malformed_request() -> serde_json::Value {
+//     json!({
+//         "id": 999,
+//         "method": "initialize"
+//     })
+// }
 
 /// Unknown method request
 pub fn unknown_method_request(id: i32) -> serde_json::Value {

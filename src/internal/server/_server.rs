@@ -2,7 +2,6 @@
 
 use crate::internal::mcp::registry::ToolRegistry;
 use crate::internal::server::tool::ToolHandler;
-// NEW IMPORTS FOR YOUR CLEAN RUNNER
 use crate::internal::mcp::processor::McpProcessor;
 use crate::internal::transport::runner::TransportRunner;
 use crate::internal::transport::stdio::StdioTransport;
@@ -11,10 +10,9 @@ use anyhow::{Context, Result};
 use rmcp::{
     model::*,
     service::RequestContext,
-    // REMOVED: transport::sse_server imports (Dead code)
     ErrorData as McpError,
     RoleServer,
-    ServerHandler, // ServiceExt removed (we don't use library runner)
+    ServerHandler,
 };
 use std::process;
 use std::sync::Arc;
@@ -169,7 +167,6 @@ impl Server {
         Ok(())
     }
 
-    // --- NUKE AND PAVE: CLEAN STDIO IMPLEMENTATION ---
     async fn serve_stdio(&self) -> Result<()> {
         // Logs go to stderr, so this is safe
         info!("Starting STDIO server with {} tools", self.tool_count());
@@ -195,8 +192,11 @@ impl Server {
 
     /// Serve in HTTP mode - proper MCP JSON-RPC over HTTP
     async fn serve_http(&self) -> Result<()> {
-        use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::post, Json};
+        use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::{post, get}, Json};
         use serde_json::Value;
+        async fn health() -> impl IntoResponse {
+            StatusCode::OK
+        }
 
         let addr = format!("{}:{}", self.config.server.host, self.config.server.port);
         info!(
@@ -295,6 +295,7 @@ impl Server {
 
         // 3. Build Router
         let app = axum::Router::new()
+            .route("/health", get(health))
             .route("/mcp", post(handle_mcp_request))
             .with_state(state);
 
@@ -313,14 +314,12 @@ impl Server {
         Ok(())
     }
 
-    // --- HELPER METHODS REQUIRED FOR THE ABOVE CODE ---
-
     async fn list_tools_simple(&self) -> Result<ListToolsResult, McpError> {
         let tool_handler = self.tool_handler.lock().await;
         Ok(ListToolsResult {
             tools: tool_handler.list_tool_metadata(),
             next_cursor: None,
-            meta: None, // Required for 0.12.0
+            meta: None, // Required for rmcp 0.12.0
         })
     }
 

@@ -58,6 +58,9 @@ uuid = "1.18.1"
 regex = "1.10.4"
 chrono = { version = "0.4", features = ["serde"] }
 
+[dev-dependencies]
+tempfile = "3"
+
 [build-dependencies]
 vergen = { version = "9.0.6", features = ["build", "si", "rustc", "cargo"] }
 anyhow = "1.0"
