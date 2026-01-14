@@ -47,7 +47,6 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # For potential TUI (if we keep that functionality)
 crossterm = "0.29"
-tui = "0.19"
 async-trait = "0.1.89"
 futures-util = "0.3.31"
 tokio-stream = "0.1.17"
