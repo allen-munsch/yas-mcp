@@ -20,12 +20,12 @@ anyhow = "1.0"
 thiserror = "2.0"
 
 # MCP SDK
-rmcp = { version = "0.9.1", features = [
+rmcp = { version = "0.12.0", features = [
     "transport-async-rw", 
     "transport-streamable-http-server",
     "transport-streamable-http-server-session", 
     "transport-worker",
-    "transport-sse-server",
+    "server",
     ] }
 rmcp-macros = "0.9.0"
 schemars = "1.1"

@@ -174,7 +174,7 @@ impl AppConfig {
             .set_default("logging.level", "info")?
             .set_default("logging.format", "compact")?
             .set_default("logging.color", true)?
-            .set_default("endpoint.auth_type", "none")?
+            .set_default("endpoint.auth_type", false)?
             // Load config files in order of precedence
             .add_source(File::with_name("config").required(false))
             .add_source(File::with_name("/etc/yas-mcp/config").required(false))

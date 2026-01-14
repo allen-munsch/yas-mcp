@@ -54,6 +54,7 @@ impl McpProcessor {
                 let result = ListToolsResult {
                     tools,
                     next_cursor: None,
+                    meta: None,
                 };
                 JsonRpcResponse {
                     jsonrpc: "2.0".to_string(),

@@ -16,32 +16,26 @@ pub type RouteExecutor = Arc<
 >;
 
 /// RouteConfig holds the configuration for a specific route
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default)]
 pub struct RouteConfig {
     pub path: String,
     pub method: String,
-    #[serde(skip_serializing_if = "String::is_empty")]
     pub description: String,
     pub headers: HashMap<String, String>,
     pub parameters: HashMap<String, String>,
-    /// Method specific configurations
     pub method_config: MethodConfig,
 }
 
 /// MethodConfig holds method-specific configurations
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MethodConfig {
-    /// For GET requests
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub query_params: Vec<String>,
-
-    /// For multipart/form-data
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub header_params: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub form_fields: Vec<String>,
-
-    /// For file uploads
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub file_upload: Option<FileUploadConfig>,
+    pub file_upload: Option<String>,
 }
 
 /// FileUploadConfig holds configuration for file uploads
