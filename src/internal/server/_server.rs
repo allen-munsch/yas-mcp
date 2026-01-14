@@ -1,19 +1,13 @@
 // src/internal/server/_server.rs
 
+use crate::internal::mcp::processor::McpProcessor;
 use crate::internal::mcp::registry::ToolRegistry;
 use crate::internal::server::tool::ToolHandler;
-use crate::internal::mcp::processor::McpProcessor;
 use crate::internal::transport::runner::TransportRunner;
 use crate::internal::transport::stdio::StdioTransport;
 
 use anyhow::{Context, Result};
-use rmcp::{
-    model::*,
-    service::RequestContext,
-    ErrorData as McpError,
-    RoleServer,
-    ServerHandler,
-};
+use rmcp::{model::*, service::RequestContext, ErrorData as McpError, RoleServer, ServerHandler};
 use std::process;
 use std::sync::Arc;
 use tracing::{error, info};
@@ -192,7 +186,13 @@ impl Server {
 
     /// Serve in HTTP mode - proper MCP JSON-RPC over HTTP
     async fn serve_http(&self) -> Result<()> {
-        use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::{post, get}, Json};
+        use axum::{
+            extract::State,
+            http::StatusCode,
+            response::IntoResponse,
+            routing::{get, post},
+            Json,
+        };
         use serde_json::Value;
         async fn health() -> impl IntoResponse {
             StatusCode::OK
