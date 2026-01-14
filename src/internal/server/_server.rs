@@ -195,13 +195,7 @@ impl Server {
 
     /// Serve in HTTP mode - proper MCP JSON-RPC over HTTP
     async fn serve_http(&self) -> Result<()> {
-        use axum::{
-            extract::State,
-            http::StatusCode,
-            response::IntoResponse,
-            routing::post,
-            Json,
-        };
+        use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::post, Json};
         use serde_json::Value;
 
         let addr = format!("{}:{}", self.config.server.host, self.config.server.port);

@@ -466,7 +466,9 @@ impl Parser for SwaggerParser {
                             .clone()
                             .or(op.description.clone())
                             .unwrap_or_default();
-                        let description = self.adjuster.get_description(path, method, &base_description);
+                        let description =
+                            self.adjuster
+                                .get_description(path, method, &base_description);
 
                         let route_config = RouteConfig {
                             path: path.clone(),
