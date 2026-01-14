@@ -1,5 +1,3 @@
-// src/internal/requester/http_requester.rs
-
 use anyhow::{anyhow, Context, Result};
 use reqwest::Client;
 use serde_json::Value;
@@ -11,7 +9,6 @@ use tracing::info;
 use crate::internal::config::_config::EndpointConfig;
 use crate::internal::requester::RouteExecutor;
 
-/// HTTP response structure
 #[derive(Debug, Clone)]
 pub struct HttpResponse {
     pub status_code: u16,
@@ -19,7 +16,6 @@ pub struct HttpResponse {
     pub headers: HashMap<String, String>,
 }
 
-/// HTTPRequester handles both request building and execution
 #[derive(Clone)]
 pub struct HttpRequester {
     client: Client,
@@ -27,7 +23,6 @@ pub struct HttpRequester {
 }
 
 impl HttpRequester {
-    /// Create a new HTTPRequester with default configuration
     pub fn new(service_cfg: &EndpointConfig) -> Result<Self> {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
@@ -40,7 +35,6 @@ impl HttpRequester {
         })
     }
 
-    /// Set timeout for the HTTP client
     pub fn set_timeout(&mut self, timeout: Duration) -> Result<()> {
         self.client = Client::builder()
             .timeout(timeout)
@@ -49,7 +43,6 @@ impl HttpRequester {
         Ok(())
     }
 
-    /// Build a route executor for a specific route configuration
     pub fn build_route_executor(
         &self,
         config: &crate::internal::requester::RouteConfig,
@@ -57,46 +50,61 @@ impl HttpRequester {
         let base_url = self.service_cfg.base_url.clone();
         let method = config.method.clone();
         let path = config.path.clone();
-        let mut headers = config.headers.clone();
+        let mut static_headers = config.headers.clone();
 
-        // Add service-level headers
+        // Capture known param names from config to separate them
+        // Fields are Vec<String>, so we just clone them
+        let known_header_params = config.method_config.header_params.clone();
+        let known_query_params = config.method_config.query_params.clone();
+
         for (key, value) in &self.service_cfg.headers {
-            headers.entry(key.clone()).or_insert(value.clone());
+            static_headers.entry(key.clone()).or_insert(value.clone());
         }
 
         let client = self.client.clone();
 
-        // Create the executor closure - now wrapped in Arc for cloning
         let executor: RouteExecutor = Arc::new(move |params_json: &str| {
             let base_url = base_url.clone();
             let method = method.clone();
             let path = path.clone();
-            let headers = headers.clone();
+            let static_headers = static_headers.clone();
             let client = client.clone();
 
-            // Move the string into the async block to fix lifetime issues
+            // Capture these for the closure
+            let known_header_params = known_header_params.clone();
+            let known_query_params = known_query_params.clone();
+
             let params_json = params_json.to_string();
 
             Box::pin(async move {
-                let params: serde_json::Value = serde_json::from_str(&params_json)
+                // Parse the main input
+                let params_value: serde_json::Value = serde_json::from_str(&params_json)
                     .context("Failed to parse parameters as JSON")?;
 
-                // Build the full URL
+                // Convert to object for manipulation (so we can remove fields as we use them)
+                let mut active_params = params_value.as_object().cloned().unwrap_or_default();
+
+                // 1. Build URL & Handle Path Params
+                // (Iterate all params to see if they match URL placeholders)
                 let mut url = format!("{}{}", base_url, path);
 
-                // Handle path parameters
-                if let Some(param_obj) = params.as_object() {
-                    for (key, value) in param_obj {
-                        if let serde_json::Value::String(str_value) = value {
-                            let placeholder = format!("{{{}}}", key);
-                            if url.contains(&placeholder) {
-                                url = url.replace(&placeholder, str_value);
-                            }
+                // We collect keys to remove to avoid modification during iteration
+                let mut used_keys = Vec::new();
+                for (key, value) in &active_params {
+                    if let serde_json::Value::String(str_value) = value {
+                        let placeholder = format!("{{{}}}", key);
+                        if url.contains(&placeholder) {
+                            url = url.replace(&placeholder, str_value);
+                            used_keys.push(key.clone());
                         }
                     }
                 }
+                // Remove path params from map so they aren't sent in body/query
+                for k in used_keys {
+                    active_params.remove(&k);
+                }
 
-                // Build request
+                // 2. Build Request
                 let mut request_builder = match method.as_str() {
                     "GET" => client.get(&url),
                     "POST" => client.post(&url),
@@ -106,33 +114,50 @@ impl HttpRequester {
                     _ => return Err(anyhow!("Unsupported HTTP method: {}", method)),
                 };
 
-                // Add headers
-                for (key, value) in &headers {
+                // 3. Add Static Headers
+                for (key, value) in &static_headers {
                     request_builder = request_builder.header(key, value);
                 }
 
-                // Handle query parameters for GET requests
-                if method == "GET" {
-                    if let Some(param_obj) = params.as_object() {
-                        for (key, value) in param_obj {
-                            if let serde_json::Value::String(str_value) = value {
-                                // Only add as query param if not used as path param
-                                if !path.contains(&format!("{{{}}}", key)) {
-                                    request_builder = request_builder.query(&[(key, str_value)]);
-                                }
-                            }
+                // 4. Handle Dynamic Headers
+                for header_key in &known_header_params {
+                    if let Some(val) = active_params.remove(header_key) {
+                        if let Some(s) = val.as_str() {
+                            // Fix: Use as_str() because header() expects &str, not &String
+                            request_builder = request_builder.header(header_key.as_str(), s);
+                        } else {
+                            // Convert numbers/bools to string for header
+                            request_builder =
+                                request_builder.header(header_key.as_str(), val.to_string());
                         }
                     }
-                } else {
-                    // For non-GET requests, send params as JSON body
-                    if !params.is_null() {
-                        request_builder = request_builder.json(&params);
+                }
+
+                // 5. Handle Query Params (Explicit list)
+                for query_key in &known_query_params {
+                    if let Some(val) = active_params.remove(query_key) {
+                        if let Some(s) = val.as_str() {
+                            request_builder = request_builder.query(&[(query_key, s)]);
+                        } else {
+                            request_builder =
+                                request_builder.query(&[(query_key, val.to_string())]);
+                        }
+                    }
+                }
+
+                // 6. Handle Remaining Params (Body vs Query Fallback)
+                if !active_params.is_empty() {
+                    if method == "GET" {
+                        // For GET, anything leftover goes to query (fallback behavior)
+                        request_builder = request_builder.query(&active_params);
+                    } else {
+                        // For POST/PUT/PATCH, leftovers go to JSON body
+                        request_builder = request_builder.json(&active_params);
                     }
                 }
 
                 info!("Executing request: {} {}", method, url);
 
-                // Execute request
                 let response = request_builder
                     .send()
                     .await
@@ -145,11 +170,8 @@ impl HttpRequester {
         Ok(executor)
     }
 
-    /// Process the HTTP response into our standard format
     async fn process_response(response: reqwest::Response) -> Result<HttpResponse> {
         let status_code = response.status().as_u16();
-
-        // Clone headers before consuming the response
         let headers_map: HashMap<String, String> = response
             .headers()
             .iter()
@@ -161,7 +183,6 @@ impl HttpRequester {
             })
             .collect();
 
-        // Read response body
         let body = response
             .bytes()
             .await
@@ -175,7 +196,6 @@ impl HttpRequester {
         })
     }
 
-    /// Direct execution method for testing or manual use
     pub async fn execute_direct(
         &self,
         method: &str,
@@ -192,14 +212,12 @@ impl HttpRequester {
             _ => return Err(anyhow!("Unsupported HTTP method: {}", method)),
         };
 
-        // Add headers
         if let Some(headers_map) = headers {
             for (key, value) in headers_map {
                 request_builder = request_builder.header(&key, &value);
             }
         }
 
-        // Add body for non-GET requests
         if let Some(body_data) = body {
             if method != "GET" {
                 request_builder = request_builder.json(&body_data);

@@ -7,7 +7,7 @@ use crate::internal::models::adjustments::McpAdjustments;
 
 /// Adjuster provides filtering and description overrides based on YAML configuration
 pub struct Adjuster {
-    adjustments: McpAdjustments,
+    pub adjustments: McpAdjustments,
 }
 
 impl Adjuster {

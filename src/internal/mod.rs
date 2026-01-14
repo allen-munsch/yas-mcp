@@ -1,7 +1,10 @@
 pub mod auth;
 pub mod config;
+pub mod gemini;
 pub mod logger;
+pub mod mcp;
 pub mod models;
 pub mod parser;
 pub mod requester;
 pub mod server;
+pub mod transport;

@@ -6,6 +6,9 @@ edition = "2021"
 build = "build.rs"  # Add this line for build scripts
 license = "Apache-2.0"
 
+[features]
+test-utils = []
+
 [dependencies]
 tokio = { version = "1.0", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -17,12 +20,12 @@ anyhow = "1.0"
 thiserror = "2.0"
 
 # MCP SDK
-rmcp = { version = "0.9.1", features = [
+rmcp = { version = "0.12.0", features = [
     "transport-async-rw", 
     "transport-streamable-http-server",
     "transport-streamable-http-server-session", 
     "transport-worker",
-    "transport-sse-server",
+    "server",
     ] }
 rmcp-macros = "0.9.0"
 schemars = "1.1"
@@ -44,7 +47,6 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # For potential TUI (if we keep that functionality)
 crossterm = "0.29"
-tui = "0.19"
 async-trait = "0.1.89"
 futures-util = "0.3.31"
 tokio-stream = "0.1.17"
@@ -52,7 +54,17 @@ async-stream = "0.3.6"
 tokio-util = "0.7.17"
 futures = "0.3.31"
 uuid = "1.18.1"
+regex = "1.10.4"
+chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+tempfile = "3"
 
 [build-dependencies]
 vergen = { version = "9.0.6", features = ["build", "si", "rustc", "cargo"] }
 anyhow = "1.0"
+
+[[test]]
+name = "stdio_protocol_tests"
+path = "tests/stdio_protocol_tests.rs"
+required-features = ["test-utils"]

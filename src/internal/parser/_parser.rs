@@ -1,203 +1,202 @@
-// src/internal/parser/parser.rs
-
-use anyhow::{anyhow, Context, Result};
-use openapiv3::{OpenAPI, Operation, Parameter, ReferenceOr, Schema, SchemaKind, Type};
+use crate::internal::parser::adjuster::Adjuster;
+use crate::internal::parser::types::{Parser, RouteTool};
+use crate::internal::requester::types::RouteConfig;
+use anyhow::{Context, Result};
+use openapiv3::{OpenAPI, Parameter, ReferenceOr, Schema, SchemaKind, Type};
+use regex::Regex;
 use serde_json::{Map, Value};
 use std::collections::HashMap;
-use std::fs;
 use std::io::Read;
-use std::sync::Arc;
-use tracing::{info, warn};
+use std::sync::OnceLock;
 
-use super::adjuster::Adjuster;
-use super::types::{Parser, RouteTool};
-use crate::internal::requester::{MethodConfig, RouteConfig};
-
-/// SwaggerParser parses Swagger specifications and generates route configurations
 pub struct SwaggerParser {
     doc: Option<OpenAPI>,
-    route_tools: Vec<RouteTool>,
     adjuster: Adjuster,
+    cache_tools: Vec<RouteTool>,
 }
 
 impl SwaggerParser {
     pub fn new(adjuster: Adjuster) -> Self {
         Self {
             doc: None,
-            route_tools: Vec::new(),
             adjuster,
+            cache_tools: Vec::new(),
         }
     }
 
-    /// Detect and parse OpenAPI specification (focus on 3.0 first)
-    fn detect_and_parse_openapi(&mut self, data: &[u8]) -> Result<()> {
-        // 1. Parse into a generic Value first so we can manipulate it
-        // We use the "turbofish" syntax ::<Value> so the compiler knows what type we want.
-        let mut json_value: serde_json::Value =
-            if let Ok(v) = serde_json::from_slice::<serde_json::Value>(data) {
-                v
-            } else if let Ok(v) = serde_yaml::from_slice::<serde_yaml::Value>(data) {
-                // Convert the YAML generic value to a JSON generic value
-                serde_json::to_value(v).context("Failed to convert YAML spec to JSON")?
-            } else {
-                warn!(
-                "OpenAPI 2.0 support temporarily disabled. Please use OpenAPI 3.0 specifications."
-            );
-                return Err(anyhow!("Failed to parse spec as generic JSON or YAML"));
-            };
+    fn clean_description(desc: &str) -> String {
+        static RE: OnceLock<Regex> = OnceLock::new();
+        let re = RE.get_or_init(|| Regex::new(r"<[^>]*>").unwrap());
 
-        // 2. Sanitize the JSON to fix the "Sibling Ref" panic
-        Self::sanitize_refs(&mut json_value);
+        let no_html = re.replace_all(desc, " ");
+        let cleaned = no_html
+            .replace(['\n', '\r'], " ")
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
 
-        // 3. Now attempt to convert the sanitized Value into the strict OpenAPI struct
-        match serde_json::from_value::<OpenAPI>(json_value) {
-            Ok(doc) => {
-                info!("Successfully parsed OpenAPI 3.0 spec");
-                self.doc = Some(doc);
-                Ok(())
-            }
-            Err(e) => {
-                warn!("Strict OpenAPI parsing failed: {}", e);
-                Err(anyhow!("Failed to parse OpenAPI 3.0 spec: {}", e))
-            }
+        if cleaned.is_empty() {
+            return "No description provided".to_string();
+        }
+
+        if cleaned.len() > 700 {
+            let mut truncated = cleaned[..700].to_string();
+            truncated.push_str("...");
+            truncated
+        } else {
+            cleaned
         }
     }
 
-    /// Recursively remove sibling fields from objects containing "$ref"
-    fn sanitize_refs(value: &mut Value) {
+    fn ensure_strict_object(value: &mut Value) {
         match value {
             Value::Object(map) => {
-                // If this object has a "$ref" key...
-                if map.contains_key("$ref") {
-                    // ...we must remove all other keys to satisfy openapiv3 strictness
-                    // We keep strictly only "$ref"
-                    let ref_val = map["$ref"].clone();
-                    map.clear();
-                    map.insert("$ref".to_string(), ref_val);
-                } else {
-                    // Otherwise, recurse into children
-                    for (_, v) in map.iter_mut() {
-                        Self::sanitize_refs(v);
+                if let Some(Value::String(t)) = map.get("type") {
+                    if t == "object" && !map.contains_key("properties") {
+                        map.insert("properties".to_string(), serde_json::json!({}));
                     }
+                }
+
+                if let Some(Value::Object(props)) = map.get_mut("properties") {
+                    for v in props.values_mut() {
+                        Self::ensure_strict_object(v);
+                    }
+                }
+
+                if let Some(items) = map.get_mut("items") {
+                    Self::ensure_strict_object(items);
                 }
             }
             Value::Array(arr) => {
-                for v in arr.iter_mut() {
-                    Self::sanitize_refs(v);
+                for v in arr {
+                    Self::ensure_strict_object(v);
                 }
             }
-            _ => {} // Primitives don't need sanitization
-        }
-    }
-    fn generate_tool(&self, route: &RouteConfig) -> rmcp::model::Tool {
-        // Create a normalized tool name
-        let tool_name = Self::normalize_tool_name(&route.path, &route.method);
-
-        let description = format!("{} {} - {}", route.method, route.path, route.description);
-
-        // Create input schema based on route parameters
-        let input_schema = self.create_input_schema(route);
-
-        // Create output schema from responses
-        let output_schema = self.create_output_schema(route);
-
-        rmcp::model::Tool {
-            name: tool_name.into(),
-            description: Some(description.into()),
-            input_schema: Arc::new(input_schema),
-            annotations: None,
-            icons: None,
-            meta: None,
-            title: None,
-            output_schema: output_schema.map(Arc::new),
+            _ => {}
         }
     }
 
-    /// Normalize tool names to avoid ambiguity
     fn normalize_tool_name(path: &str, method: &str) -> String {
-        let path = path.trim_start_matches('/');
-        let path = path.replace('/', "_");
-        // Keep parameter names but make them distinct
-        let path = path.replace(['{', '}'], "__");
-        format!("{}_{}", method.to_lowercase(), path).to_lowercase()
+        let path = path
+            .replace('/', "_")
+            .replace(['{', '}'], "__")
+            .replace('-', "_");
+        let name = format!("{}_{}", method.to_lowercase(), path);
+        let re = Regex::new(r"[^a-zA-Z0-9_-]").unwrap();
+        let cleaned = re.replace_all(&name, "").to_string();
+
+        if cleaned.len() > 60 {
+            cleaned[..60].to_string()
+        } else {
+            cleaned
+        }
     }
 
-    /// Create JSON schema for tool inputs
-    fn create_input_schema(&self, route: &RouteConfig) -> Map<String, serde_json::Value> {
-        let mut properties = Map::new();
-        let mut required = Vec::new();
+    fn extract_path_params(path: &str) -> Vec<String> {
+        let re = Regex::new(r"\{([^}]+)\}").unwrap();
+        re.captures_iter(path)
+            .map(|cap| cap[1].to_string())
+            .collect()
+    }
 
-        // Add path parameters
-        let path_params = Self::extract_path_params(&route.path);
-        for param in &path_params {
-            properties.insert(
-                param.clone(),
+    fn schema_to_json_schema(schema_ref: &ReferenceOr<Schema>) -> serde_json::Value {
+        let schema = match schema_ref {
+            ReferenceOr::Item(s) => s,
+            ReferenceOr::Reference { .. } => return serde_json::json!({ "type": "string" }),
+        };
+
+        let description =
+            Self::clean_description(schema.schema_data.description.as_deref().unwrap_or(""));
+
+        match &schema.schema_kind {
+            SchemaKind::Type(Type::String(_)) => serde_json::json!({
+                "type": "string",
+                "description": description
+            }),
+            SchemaKind::Type(Type::Number(_)) => serde_json::json!({
+                "type": "number",
+                "description": description
+            }),
+            SchemaKind::Type(Type::Integer(_)) => serde_json::json!({
+                "type": "number",
+                "description": description
+            }),
+            SchemaKind::Type(Type::Boolean(_)) => serde_json::json!({
+                "type": "boolean",
+                "description": description
+            }),
+            SchemaKind::Type(Type::Object(obj)) => {
+                let mut properties = Map::new();
+                for (name, prop_schema) in &obj.properties {
+                    let inner_schema = match prop_schema {
+                        ReferenceOr::Item(x) => ReferenceOr::Item(*x.clone()),
+                        ReferenceOr::Reference { reference } => ReferenceOr::Reference {
+                            reference: reference.clone(),
+                        },
+                    };
+                    properties.insert(name.clone(), Self::schema_to_json_schema(&inner_schema));
+                }
+
+                let mut json = serde_json::json!({
+                    "type": "object",
+                    "properties": properties,
+                    "description": description
+                });
+
+                if !obj.required.is_empty() {
+                    if let Some(map) = json.as_object_mut() {
+                        map.insert("required".to_string(), serde_json::json!(obj.required));
+                    }
+                }
+                json
+            }
+            SchemaKind::Type(Type::Array(arr)) => {
+                let items = match &arr.items {
+                    Some(items_ref) => {
+                        let inner_schema = match items_ref {
+                            ReferenceOr::Item(x) => ReferenceOr::Item(*x.clone()),
+                            ReferenceOr::Reference { reference } => ReferenceOr::Reference {
+                                reference: reference.clone(),
+                            },
+                        };
+                        Self::schema_to_json_schema(&inner_schema)
+                    }
+                    None => serde_json::json!({ "type": "string" }),
+                };
                 serde_json::json!({
-                    "type": "string",
-                    "description": format!("Path parameter: {}", param)
-                }),
-            );
-        }
-        required.extend(path_params);
-
-        // Add query parameters with proper types
-        for param in &route.method_config.query_params {
-            if let Some(param_schema) = self.get_parameter_schema(route, param, "query") {
-                properties.insert(param.clone(), param_schema);
-            } else {
-                // Fallback to string
-                properties.insert(
-                    param.clone(),
-                    serde_json::json!({
-                        "type": "string",
-                        "description": format!("Query parameter: {}", param)
-                    }),
-                );
+                    "type": "array",
+                    "items": items,
+                    "description": description
+                })
             }
+            _ => serde_json::json!({
+                "type": "string",
+                "description": description
+            }),
         }
-
-        // For POST/PUT/PATCH, add body parameter
-        if matches!(route.method.as_str(), "POST" | "PUT" | "PATCH") {
-            if let Some(body_schema) = self.get_body_schema(route) {
-                properties.insert("body".to_string(), body_schema);
-            }
-        }
-
-        let mut schema = Map::new();
-        schema.insert(
-            "type".to_string(),
-            serde_json::Value::String("object".to_string()),
-        );
-
-        if !properties.is_empty() {
-            schema.insert(
-                "properties".to_string(),
-                serde_json::Value::Object(properties),
-            );
-        }
-
-        if !required.is_empty() {
-            schema.insert(
-                "required".to_string(),
-                serde_json::Value::Array(
-                    required
-                        .into_iter()
-                        .map(serde_json::Value::String)
-                        .collect(),
-                ),
-            );
-        }
-
-        schema
     }
 
-    /// Get parameter schema with proper type information
+    fn parameter_data_to_json_schema(
+        &self,
+        param_data: &openapiv3::ParameterData,
+    ) -> (serde_json::Value, bool) {
+        let raw_desc = param_data.description.as_deref().unwrap_or("");
+        let description = Self::clean_description(raw_desc);
+
+        let schema = serde_json::json!({
+            "type": "string",
+            "description": description
+        });
+
+        (schema, param_data.required)
+    }
+
     fn get_parameter_schema(
         &self,
         route: &RouteConfig,
         param_name: &str,
         param_type: &str,
-    ) -> Option<serde_json::Value> {
+    ) -> Option<(serde_json::Value, bool)> {
         let doc = self.doc.as_ref()?;
         let path_item = doc.paths.paths.get(&route.path)?;
 
@@ -215,7 +214,6 @@ impl SwaggerParser {
             _ => None,
         }?;
 
-        // Find the parameter in the operation
         for param in &operation.parameters {
             if let ReferenceOr::Item(param) = param {
                 let param_data = match param {
@@ -232,394 +230,274 @@ impl SwaggerParser {
                 };
 
                 if param_data.name == param_name {
-                    // Extract schema information from parameter
                     return Some(self.parameter_data_to_json_schema(param_data));
                 }
             }
         }
-
         None
     }
 
-    /// Convert ParameterData to JSON Schema
-    fn parameter_data_to_json_schema(
-        &self,
-        param_data: &openapiv3::ParameterData,
-    ) -> serde_json::Value {
-        // For now, use string as default - in future, extract from param_data.format
-        serde_json::json!({
-            "type": "string",
-            "description": param_data.description.as_deref().unwrap_or(""),
-            "required": param_data.required,
-        })
-    }
-
-    /// Create output schema from response definitions
-    fn create_output_schema(&self, route: &RouteConfig) -> Option<Map<String, serde_json::Value>> {
-        let doc = self.doc.as_ref()?;
-        let path_item = doc.paths.paths.get(&route.path)?;
-        let path_item = match path_item {
-            ReferenceOr::Item(item) => item,
-            ReferenceOr::Reference { .. } => return None,
-        };
-
-        let operation = match route.method.as_str() {
-            "GET" => path_item.get.as_ref(),
-            "POST" => path_item.post.as_ref(),
-            "PUT" => path_item.put.as_ref(),
-            "DELETE" => path_item.delete.as_ref(),
-            "PATCH" => path_item.patch.as_ref(),
-            _ => None,
-        }?;
-
-        // Get the first successful response (2xx)
-        for (status, response_ref) in &operation.responses.responses {
-            let status_code = match status {
-                openapiv3::StatusCode::Code(code) => *code,
-                _ => continue,
-            };
-
-            if (200..300).contains(&status_code) {
-                if let ReferenceOr::Item(response) = response_ref {
-                    if let Some(schema) = Self::get_first_response_schema(response) {
-                        let json_schema = Self::schema_to_json_schema(&schema);
-                        if let serde_json::Value::Object(mut map) = json_schema {
-                            // Add status code info
-                            map.insert(
-                                "http_status".to_string(),
-                                serde_json::Value::Number(status_code.into()),
-                            );
-                            return Some(map);
-                        }
-                    }
-                }
-            }
-        }
-
-        None
-    }
-
-    /// Get the first schema from a response
-    fn get_first_response_schema(response: &openapiv3::Response) -> Option<Schema> {
-        for (_, media_type) in &response.content {
-            if let Some(ReferenceOr::Item(schema)) = &media_type.schema {
-                return Some(schema.clone());
-            }
-        }
-        None
-    }
-
-    /// Get the first body schema from an operation
-    fn get_first_body_schema(operation: &Operation) -> (Option<Schema>, bool) {
-        let request_body = match operation.request_body.as_ref() {
-            Some(rb) => rb,
-            None => return (None, false),
-        };
-
-        let request_body = match request_body {
-            ReferenceOr::Item(rb) => rb,
-            ReferenceOr::Reference { .. } => return (None, false),
-        };
-
-        let content = &request_body.content;
-        if content.is_empty() {
-            return (None, request_body.required);
-        }
-
-        // Try to find the first schema in any content type
-        for (_, media_type) in content {
-            if let Some(ReferenceOr::Item(schema)) = &media_type.schema {
-                return (Some(schema.clone()), request_body.required);
-            }
-        }
-
-        (None, request_body.required)
-    }
-
-    /// Get body schema for a route
     fn get_body_schema(&self, route: &RouteConfig) -> Option<serde_json::Value> {
         let doc = self.doc.as_ref()?;
-
-        // Get the path item
         let path_item = doc.paths.paths.get(&route.path)?;
         let path_item = match path_item {
             ReferenceOr::Item(item) => item,
             ReferenceOr::Reference { .. } => return None,
         };
-
         let operation = match route.method.as_str() {
             "POST" => path_item.post.as_ref(),
             "PUT" => path_item.put.as_ref(),
             "PATCH" => path_item.patch.as_ref(),
-            _ => None,
+            _ => return None,
         }?;
 
-        let (schema, _required) = Self::get_first_body_schema(operation);
-        schema.map(|s| Self::schema_to_json_schema(&s))
+        let request_body = operation.request_body.as_ref()?;
+        let request_body = match request_body {
+            ReferenceOr::Item(rb) => rb,
+            ReferenceOr::Reference { .. } => return None,
+        };
+
+        if let Some(content) = request_body.content.get("application/json") {
+            if let Some(schema) = &content.schema {
+                let mut json_schema = Self::schema_to_json_schema(schema);
+                Self::ensure_strict_object(&mut json_schema);
+                return Some(json_schema);
+            }
+        }
+        None
     }
 
-    /// Convert OpenAPI schema to JSON schema
-    fn schema_to_json_schema(schema: &Schema) -> serde_json::Value {
-        match &schema.schema_kind {
-            SchemaKind::Type(Type::Object(object_type)) => {
-                let mut properties = serde_json::Map::new();
-                for (prop_name, prop_schema) in &object_type.properties {
-                    if let ReferenceOr::Item(prop_schema) = prop_schema {
-                        properties
-                            .insert(prop_name.clone(), Self::schema_to_json_schema(prop_schema));
-                    }
-                }
-                let mut result = serde_json::Map::new();
-                result.insert(
-                    "type".to_string(),
-                    serde_json::Value::String("object".to_string()),
-                );
-                result.insert(
-                    "properties".to_string(),
-                    serde_json::Value::Object(properties),
-                );
-                if !object_type.required.is_empty() {
-                    result.insert(
-                        "required".to_string(),
-                        serde_json::Value::Array(
-                            object_type
-                                .required
-                                .iter()
-                                .map(|s| serde_json::Value::String(s.clone()))
-                                .collect(),
-                        ),
-                    );
-                }
-                serde_json::Value::Object(result)
-            }
-            SchemaKind::Type(Type::String(_)) => {
+    fn create_input_schema(&self, route: &RouteConfig) -> Map<String, serde_json::Value> {
+        let mut properties = Map::new();
+        let mut required = Vec::new();
+
+        let path_params = Self::extract_path_params(&route.path);
+        for param in &path_params {
+            properties.insert(
+                param.clone(),
                 serde_json::json!({
                     "type": "string",
-                    "description": schema.schema_data.description,
-                })
-            }
-            SchemaKind::Type(Type::Number(_)) => {
-                serde_json::json!({
-                    "type": "number",
-                    "description": schema.schema_data.description,
-                })
-            }
-            SchemaKind::Type(Type::Integer(_)) => {
-                serde_json::json!({
-                    "type": "integer",
-                    "description": schema.schema_data.description,
-                })
-            }
-            SchemaKind::Type(Type::Boolean(_)) => {
-                serde_json::json!({
-                    "type": "boolean",
-                    "description": schema.schema_data.description,
-                })
-            }
-            SchemaKind::Type(Type::Array(array_type)) => {
-                // Fixed: items_box is already ReferenceOr<Box<Schema>>, not Box<ReferenceOr<Schema>>
-                let items = array_type
-                    .items
-                    .as_ref()
-                    .map(|items_ref_or| {
-                        // Match directly on the ReferenceOr without calling as_ref()
-                        match items_ref_or {
-                            ReferenceOr::Item(item_schema) => {
-                                Self::schema_to_json_schema(item_schema)
-                            }
-                            ReferenceOr::Reference { .. } => serde_json::json!({}),
-                        }
-                    })
-                    .unwrap_or(serde_json::json!({}));
+                    "description": format!("Path parameter: {}", param)
+                }),
+            );
+            required.push(param.clone());
+        }
 
-                serde_json::json!({
-                    "type": "array",
-                    "items": items,
-                    "description": schema.schema_data.description,
-                })
-            }
-            _ => {
-                serde_json::json!({
-                    "type": "object",
-                    "description": schema.schema_data.description,
-                })
+        // Iterate directly over the vectors (No "if let Some")
+        for param in &route.method_config.query_params {
+            if let Some((param_schema, is_required)) =
+                self.get_parameter_schema(route, param, "query")
+            {
+                properties.insert(param.to_string(), param_schema);
+                if is_required {
+                    required.push(param.to_string());
+                }
+            } else {
+                properties.insert(
+                    param.to_string(),
+                    serde_json::json!({
+                        "type": "string",
+                        "description": format!("Query parameter: {}", param)
+                    }),
+                );
             }
         }
-    }
 
-    /// Extract path parameters from a URL path
-    fn extract_path_params(path: &str) -> Vec<String> {
-        path.split('/')
-            .filter(|part| part.starts_with('{') && part.ends_with('}'))
-            .map(|part| {
-                part.trim_start_matches('{')
-                    .trim_end_matches('}')
-                    .to_string()
-            })
-            .collect()
-    }
+        for param in &route.method_config.header_params {
+            if let Some((param_schema, is_required)) =
+                self.get_parameter_schema(route, param, "header")
+            {
+                properties.insert(param.to_string(), param_schema);
+                if is_required {
+                    required.push(param.to_string());
+                }
+            } else {
+                properties.insert(
+                    param.to_string(),
+                    serde_json::json!({
+                        "type": "string",
+                        "description": format!("Header parameter: {}", param)
+                    }),
+                );
+            }
+        }
 
-    /// Process operations from the parsed OpenAPI document
-    fn process_operations(&mut self) -> Result<()> {
-        let doc = self
-            .doc
-            .as_ref()
-            .ok_or_else(|| anyhow!("No OpenAPI document loaded"))?;
+        if matches!(route.method.as_str(), "POST" | "PUT" | "PATCH") {
+            if let Some(body_schema) = self.get_body_schema(route) {
+                properties.insert("body".to_string(), body_schema);
+                required.push("body".to_string());
+            }
+        }
 
-        info!("Processing operations from OpenAPI document");
-
-        // Debug: Check adjuster state
-        info!(
-            "Adjuster routes count: {}",
-            self.adjuster.get_routes_count()
+        let mut schema = Map::new();
+        schema.insert(
+            "type".to_string(),
+            serde_json::Value::String("object".to_string()),
         );
-        if self.adjuster.get_routes_count() > 0 {
-            info!("Adjuster is configured to filter routes");
-        } else {
-            info!("Adjuster has no route filters - all routes should be allowed");
+        schema.insert(
+            "properties".to_string(),
+            serde_json::Value::Object(properties),
+        );
+
+        if !required.is_empty() {
+            schema.insert(
+                "required".to_string(),
+                serde_json::Value::Array(
+                    required
+                        .into_iter()
+                        .map(serde_json::Value::String)
+                        .collect(),
+                ),
+            );
         }
 
-        info!("Total paths in document: {}", doc.paths.paths.len());
-
-        if doc.paths.paths.is_empty() {
-            warn!("No paths found in OpenAPI document!");
-            return Ok(());
-        }
-
-        for (path, path_item) in doc.paths.iter() {
-            info!("Found path: {}", path);
-
-            let path_item = match path_item {
-                ReferenceOr::Item(item) => {
-                    info!("  Path item is direct reference");
-                    item
-                }
-                ReferenceOr::Reference { reference } => {
-                    info!("  Path item is reference: {}", reference);
-                    continue;
-                }
-            };
-
-            let methods = vec![
-                ("GET", path_item.get.as_ref()),
-                ("POST", path_item.post.as_ref()),
-                ("PUT", path_item.put.as_ref()),
-                ("DELETE", path_item.delete.as_ref()),
-                ("PATCH", path_item.patch.as_ref()),
-            ];
-
-            for (method, operation) in methods {
-                if let Some(operation) = operation {
-                    info!("  Found operation: {} {}", method, path);
-
-                    let route_config = self.create_route_config(path, method, operation);
-
-                    // Call adjuster and log the result
-                    let exists = self
-                        .adjuster
-                        .exists_in_mcp(&route_config.path, &route_config.method);
-                    info!("  Adjuster result for {} {}: {}", method, path, exists);
-
-                    if exists {
-                        let tool = self.generate_tool(&route_config);
-                        self.route_tools.push(RouteTool { route_config, tool });
-                        info!("  ✅ Added tool for {} {}", method, path);
-                    } else {
-                        info!(
-                            "  ❌ Skipped tool for {} {} (filtered by adjuster)",
-                            method, path
-                        );
-                    }
-                }
-            }
-        }
-
-        info!("Processed {} route tools", self.route_tools.len());
-        Ok(())
+        schema
     }
 
-    /// Create a route configuration from a path and operation
-    fn create_route_config(&self, path: &str, method: &str, operation: &Operation) -> RouteConfig {
-        let mut headers = HashMap::new();
-        headers.insert("Content-Type".to_string(), "application/json".to_string());
+    fn generate_tool(&self, route: &RouteConfig) -> rmcp::model::Tool {
+        let tool_name = Self::normalize_tool_name(&route.path, &route.method);
 
-        let mut description = String::new();
-        if let Some(desc) = &operation.description {
-            description = desc.clone();
-        } else if let Some(summary) = &operation.summary {
-            description = summary.clone();
-        }
+        let raw_desc = format!("{} {} - {}", route.method, route.path, route.description);
+        let description = Self::clean_description(&raw_desc);
 
-        // Apply adjustments if any
-        let description = self.adjuster.get_description(path, method, &description);
+        let input_schema = self.create_input_schema(route);
+        let mut input_val = serde_json::Value::Object(input_schema);
+        Self::ensure_strict_object(&mut input_val);
 
-        // Add operation-specific headers
-        let responses = &operation.responses;
-        for response in responses.responses.values() {
-            if let ReferenceOr::Item(response) = response {
-                if let Some(content_type) = response.content.keys().next() {
-                    headers.insert("Accept".to_string(), content_type.clone());
-                    break;
-                }
-            }
-        }
+        let final_input = input_val.as_object().unwrap().clone();
 
-        // Extract query parameters
-        let mut query_params = Vec::new();
-        for param in &operation.parameters {
-            if let ReferenceOr::Item(Parameter::Query { parameter_data, .. }) = param {
-                query_params.push(parameter_data.name.clone());
-            }
-        }
-
-        // Extract path parameters for the parameters map
-        let mut parameters = HashMap::new();
-        let path_params = Self::extract_path_params(path);
-        for param in path_params {
-            parameters.insert(param.clone(), "".to_string());
-        }
-
-        RouteConfig {
-            path: path.to_string(),
-            method: method.to_string(),
-            description,
-            headers,
-            parameters,
-            method_config: MethodConfig {
-                query_params,
-                form_fields: Vec::new(),
-                file_upload: None,
-            },
+        rmcp::model::Tool {
+            name: tool_name.into(),
+            title: None,
+            description: Some(description.into()),
+            input_schema: final_input.into(),
+            output_schema: None,
+            annotations: None,
+            icons: None,
+            meta: None,
         }
     }
 }
 
 impl Parser for SwaggerParser {
-    fn init(&mut self, openapi_spec: &str, adjustments_file: Option<&str>) -> Result<()> {
-        let data = fs::read(openapi_spec)
-            .with_context(|| format!("Failed to read spec file: {}", openapi_spec))?;
+    fn init(&mut self, swagger_path: &str, adjustments_path: Option<&str>) -> Result<()> {
+        let data = std::fs::read(swagger_path).context("Failed to read Swagger file")?;
 
-        if let Some(adjustments_file) = adjustments_file {
-            self.adjuster.load(adjustments_file)?;
+        // Load adjustments if provided
+        if let Some(adj_path) = adjustments_path {
+            self.adjuster.load(adj_path)?;
         }
 
-        self.detect_and_parse_openapi(&data)?;
-        self.process_operations()?;
+        let mut json_value: serde_json::Value = if let Ok(v) = serde_json::from_slice(&data) {
+            v
+        } else if let Ok(v) = serde_yaml::from_slice::<serde_json::Value>(&data) {
+            v
+        } else {
+            return Err(anyhow::anyhow!("Failed to parse spec as JSON or YAML"));
+        };
 
-        Ok(())
-    }
+        fn sanitize_refs(value: &mut Value) {
+            match value {
+                Value::Object(map) => {
+                    if map.contains_key("$ref") {
+                        let ref_val = map["$ref"].clone();
+                        map.clear();
+                        map.insert("$ref".to_string(), ref_val);
+                    } else {
+                        for v in map.values_mut() {
+                            sanitize_refs(v);
+                        }
+                    }
+                }
+                Value::Array(arr) => {
+                    for v in arr {
+                        sanitize_refs(v);
+                    }
+                }
+                _ => {}
+            }
+        }
+        sanitize_refs(&mut json_value);
 
-    fn parse_reader(&mut self, mut reader: Box<dyn Read>) -> Result<()> {
-        let mut data = Vec::new();
-        reader.read_to_end(&mut data)?;
+        let doc: OpenAPI = serde_json::from_value(json_value)
+            .context("Failed to parse into strict OpenAPI struct")?;
+        self.doc = Some(doc);
 
-        self.detect_and_parse_openapi(&data)?;
-        self.process_operations()?;
+        if let Some(doc) = &self.doc {
+            for (path, item) in &doc.paths.paths {
+                let item = match item {
+                    ReferenceOr::Item(i) => i,
+                    _ => continue,
+                };
+
+                let operations = [
+                    ("GET", &item.get),
+                    ("POST", &item.post),
+                    ("PUT", &item.put),
+                    ("DELETE", &item.delete),
+                    ("PATCH", &item.patch),
+                ];
+
+                for (method, op_opt) in operations {
+                    if let Some(op) = op_opt {
+                        // Check if this route should be included via adjuster
+                        if !self.adjuster.exists_in_mcp(path, method) {
+                            continue;
+                        }
+
+                        let mut query_params = Vec::new();
+                        let mut header_params = Vec::new();
+
+                        for p in &op.parameters {
+                            match p {
+                                ReferenceOr::Item(Parameter::Query { parameter_data, .. }) => {
+                                    query_params.push(parameter_data.name.clone());
+                                }
+                                ReferenceOr::Item(Parameter::Header { parameter_data, .. }) => {
+                                    header_params.push(parameter_data.name.clone());
+                                }
+                                _ => {}
+                            }
+                        }
+
+                        // Get base description and apply adjuster modifications
+                        let base_description = op
+                            .summary
+                            .clone()
+                            .or(op.description.clone())
+                            .unwrap_or_default();
+                        let description =
+                            self.adjuster
+                                .get_description(path, method, &base_description);
+
+                        let route_config = RouteConfig {
+                            path: path.clone(),
+                            method: method.to_string(),
+                            description,
+                            method_config: crate::internal::requester::types::MethodConfig {
+                                query_params,
+                                header_params,
+                                ..Default::default()
+                            },
+                            headers: HashMap::new(),
+                            parameters: HashMap::new(),
+                        };
+
+                        let tool = self.generate_tool(&route_config);
+                        self.cache_tools.push(RouteTool { route_config, tool });
+                    }
+                }
+            }
+        }
 
         Ok(())
     }
 
     fn get_route_tools(&self) -> &[RouteTool] {
-        &self.route_tools
+        &self.cache_tools
+    }
+
+    fn parse_reader(&mut self, _reader: Box<dyn Read>) -> Result<()> {
+        Ok(())
     }
 }
