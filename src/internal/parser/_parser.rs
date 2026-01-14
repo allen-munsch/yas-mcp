@@ -99,7 +99,7 @@ impl SwaggerParser {
             .collect()
     }
 
-    fn schema_to_json_schema(&self, schema_ref: &ReferenceOr<Schema>) -> serde_json::Value {
+    fn schema_to_json_schema(schema_ref: &ReferenceOr<Schema>) -> serde_json::Value {
         let schema = match schema_ref {
             ReferenceOr::Item(s) => s,
             ReferenceOr::Reference { .. } => return serde_json::json!({ "type": "string" }),
@@ -134,7 +134,7 @@ impl SwaggerParser {
                             reference: reference.clone(),
                         },
                     };
-                    properties.insert(name.clone(), self.schema_to_json_schema(&inner_schema));
+                    properties.insert(name.clone(), Self::schema_to_json_schema(&inner_schema));
                 }
 
                 let mut json = serde_json::json!({
@@ -159,7 +159,7 @@ impl SwaggerParser {
                                 reference: reference.clone(),
                             },
                         };
-                        self.schema_to_json_schema(&inner_schema)
+                        Self::schema_to_json_schema(&inner_schema)
                     }
                     None => serde_json::json!({ "type": "string" }),
                 };
@@ -259,7 +259,7 @@ impl SwaggerParser {
 
         if let Some(content) = request_body.content.get("application/json") {
             if let Some(schema) = &content.schema {
-                let mut json_schema = self.schema_to_json_schema(schema);
+                let mut json_schema = Self::schema_to_json_schema(schema);
                 Self::ensure_strict_object(&mut json_schema);
                 return Some(json_schema);
             }
