@@ -40,12 +40,12 @@ impl McpProcessor {
             },
             McpMethod::Initialized => {
                 // No response for notifications
-                return JsonRpcResponse {
+                JsonRpcResponse {
                     jsonrpc: "2.0".to_string(),
                     id: None,
                     result: None,
                     error: None,
-                };
+                }
             }
             McpMethod::ToolsList => {
                 let tools = self.tool_registry.list_metadata();

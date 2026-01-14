@@ -380,8 +380,13 @@ impl SwaggerParser {
 }
 
 impl Parser for SwaggerParser {
-    fn init(&mut self, swagger_path: &str, _adjustments_path: Option<&str>) -> Result<()> {
+    fn init(&mut self, swagger_path: &str, adjustments_path: Option<&str>) -> Result<()> {
         let data = std::fs::read(swagger_path).context("Failed to read Swagger file")?;
+
+        // Load adjustments if provided
+        if let Some(adj_path) = adjustments_path {
+            self.adjuster.load(adj_path)?;
+        }
 
         let mut json_value: serde_json::Value = if let Ok(v) = serde_json::from_slice(&data) {
             v
@@ -435,6 +440,11 @@ impl Parser for SwaggerParser {
 
                 for (method, op_opt) in operations {
                     if let Some(op) = op_opt {
+                        // Check if this route should be included via adjuster
+                        if !self.adjuster.exists_in_mcp(path, method) {
+                            continue;
+                        }
+
                         let mut query_params = Vec::new();
                         let mut header_params = Vec::new();
 
@@ -450,17 +460,21 @@ impl Parser for SwaggerParser {
                             }
                         }
 
+                        // Get base description and apply adjuster modifications
+                        let base_description = op
+                            .summary
+                            .clone()
+                            .or(op.description.clone())
+                            .unwrap_or_default();
+                        let description = self.adjuster.get_description(path, method, &base_description);
+
                         let route_config = RouteConfig {
                             path: path.clone(),
                             method: method.to_string(),
-                            description: op
-                                .summary
-                                .clone()
-                                .or(op.description.clone())
-                                .unwrap_or_default(),
+                            description,
                             method_config: crate::internal::requester::types::MethodConfig {
-                                query_params: query_params,
-                                header_params: header_params,
+                                query_params,
+                                header_params,
                                 ..Default::default()
                             },
                             headers: HashMap::new(),

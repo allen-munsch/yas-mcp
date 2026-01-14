@@ -16,13 +16,11 @@ use rmcp::{
     RoleServer,
     ServerHandler, // ServiceExt removed (we don't use library runner)
 };
-use std::collections::HashMap;
 use std::process;
 use std::sync::Arc;
-use tokio::signal;
 use tracing::{error, info};
 
-use crate::internal::config::{AppConfig, AuthType, ServerMode};
+use crate::internal::config::{AppConfig, ServerMode};
 use crate::internal::parser::_parser::SwaggerParser;
 use crate::internal::parser::adjuster::Adjuster;
 use crate::internal::parser::types::Parser;
@@ -154,7 +152,7 @@ impl Server {
                     )
                 })?;
 
-            let tool_name = route_tool.tool.name.clone().to_owned();
+            let tool_name = route_tool.tool.name.clone().clone();
             let handler = tool_handler.create_handler(&tool_name, executor);
             tool_handler.register_tool(&tool_name, route_tool.tool.to_owned(), handler.clone());
 
@@ -200,7 +198,7 @@ impl Server {
         use axum::{
             extract::State,
             http::StatusCode,
-            response::{IntoResponse, Response},
+            response::IntoResponse,
             routing::post,
             Json,
         };

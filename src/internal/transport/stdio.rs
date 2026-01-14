@@ -11,6 +11,12 @@ pub struct StdioTransport {
     buffer: String,
 }
 
+impl Default for StdioTransport {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StdioTransport {
     pub fn new() -> Self {
         Self {
