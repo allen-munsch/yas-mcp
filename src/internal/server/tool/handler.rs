@@ -132,4 +132,3 @@ impl ToolHandler {
         Arc::clone(&self.registry)
     }
 }
-

@@ -36,12 +36,18 @@ impl<T: Transport> TransportRunner<T> {
                 }
             };
 
-            eprintln!("[TransportRunner] Received {} bytes for processing", input.len());
+            eprintln!(
+                "[TransportRunner] Received {} bytes for processing",
+                input.len()
+            );
 
             // Parse request
             let request = match McpProcessor::parse_request(&input) {
                 Ok(req) => {
-                    eprintln!("[TransportRunner] Successfully parsed request: method={}", req.method);
+                    eprintln!(
+                        "[TransportRunner] Successfully parsed request: method={}",
+                        req.method
+                    );
                     req
                 }
                 Err(e) => {
@@ -65,8 +71,11 @@ impl<T: Transport> TransportRunner<T> {
 
             // Process request
             let response = self.processor.process_request(&request).await;
-            eprintln!("[TransportRunner] Processed request. Response: has_result={}, has_error={}", 
-                response.result.is_some(), response.error.is_some());
+            eprintln!(
+                "[TransportRunner] Processed request. Response: has_result={}, has_error={}",
+                response.result.is_some(),
+                response.error.is_some()
+            );
 
             // Send response (skip for notifications)
             if request.id.is_some() {

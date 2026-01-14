@@ -55,14 +55,13 @@ impl GeminiValidator {
             if let Some(type_val) = schema.get("type") {
                 if type_val != "object" {
                     result.errors.push(format!(
-                        "Output schema type must be 'object', found '{}'", 
+                        "Output schema type must be 'object', found '{}'",
                         type_val
                     ));
                     result.is_valid = false;
                 }
             }
         }
-        
 
         result
     }

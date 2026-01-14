@@ -32,7 +32,7 @@ pub struct JsonRpcError {
 #[derive(Debug, Clone, PartialEq)]
 pub enum McpMethod {
     Initialize,
-    Initialized,  // notification
+    Initialized, // notification
     ToolsList,
     ToolsCall,
     Ping,

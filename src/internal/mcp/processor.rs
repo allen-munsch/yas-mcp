@@ -31,7 +31,6 @@ impl McpProcessor {
         let mcp_method = McpMethod::from(request.method.as_str());
         tracing::debug!("Processing request for method: {:?}", mcp_method);
 
-
         match mcp_method {
             McpMethod::Initialize => JsonRpcResponse {
                 jsonrpc: "2.0".to_string(),

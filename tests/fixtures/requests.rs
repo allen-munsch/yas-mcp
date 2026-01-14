@@ -36,7 +36,11 @@ pub fn list_tools_request(id: i32) -> serde_json::Value {
 }
 
 /// Call tool request
-pub fn call_tool_request(id: i32, tool_name: &str, arguments: serde_json::Value) -> serde_json::Value {
+pub fn call_tool_request(
+    id: i32,
+    tool_name: &str,
+    arguments: serde_json::Value,
+) -> serde_json::Value {
     json!({
         "jsonrpc": "2.0",
         "id": id,

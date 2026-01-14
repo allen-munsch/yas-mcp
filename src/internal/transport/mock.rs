@@ -65,7 +65,10 @@ impl Transport for MockTransport {
     }
 
     async fn write_message(&mut self, data: &[u8]) -> Result<(), TransportError> {
-        eprintln!("[MockTransport] write_message: writing {} bytes to outputs", data.len());
+        eprintln!(
+            "[MockTransport] write_message: writing {} bytes to outputs",
+            data.len()
+        );
         self.outputs.lock().unwrap().push(data.to_vec());
         Ok(())
     }

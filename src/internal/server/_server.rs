@@ -3,16 +3,18 @@
 use crate::internal::mcp::registry::ToolRegistry;
 use crate::internal::server::tool::ToolHandler;
 // NEW IMPORTS FOR YOUR CLEAN RUNNER
-use crate::internal::transport::stdio::StdioTransport;
-use crate::internal::transport::runner::TransportRunner;
 use crate::internal::mcp::processor::McpProcessor;
+use crate::internal::transport::runner::TransportRunner;
+use crate::internal::transport::stdio::StdioTransport;
 
 use anyhow::{Context, Result};
 use rmcp::{
     model::*,
     service::RequestContext,
     // REMOVED: transport::sse_server imports (Dead code)
-    ErrorData as McpError, RoleServer, ServerHandler, // ServiceExt removed (we don't use library runner)
+    ErrorData as McpError,
+    RoleServer,
+    ServerHandler, // ServiceExt removed (we don't use library runner)
 };
 use std::collections::HashMap;
 use std::process;
@@ -97,9 +99,7 @@ impl ServerHandler for Server {
                 title: None,
                 website_url: None,
             },
-            instructions: Some(
-                "OpenAPI MCP Server".into(),
-            ),
+            instructions: Some("OpenAPI MCP Server".into()),
         }
     }
 }
@@ -148,21 +148,26 @@ impl Server {
                 .requester
                 .build_route_executor(&route_tool.route_config)
                 .with_context(|| {
-                    format!("Failed to build executor for route: {}", route_tool.route_config.path)
+                    format!(
+                        "Failed to build executor for route: {}",
+                        route_tool.route_config.path
+                    )
                 })?;
 
             let tool_name = route_tool.tool.name.clone().to_owned();
             let handler = tool_handler.create_handler(&tool_name, executor);
-            tool_handler.register_tool(
-                &tool_name,
-                route_tool.tool.to_owned(),
-                handler.clone(),
-            );
+            tool_handler.register_tool(&tool_name, route_tool.tool.to_owned(), handler.clone());
 
-            info!("Registered tool: {} {} -> {}", route_tool.route_config.method, route_tool.route_config.path, tool_name);
+            info!(
+                "Registered tool: {} {} -> {}",
+                route_tool.route_config.method, route_tool.route_config.path, tool_name
+            );
         }
 
-        info!("Successfully registered {} tools", tool_handler.tool_count());
+        info!(
+            "Successfully registered {} tools",
+            tool_handler.tool_count()
+        );
         Ok(())
     }
 
@@ -177,14 +182,17 @@ impl Server {
         // 2. Get Registry
         let tool_handler = self.tool_handler.lock().await;
         let registry = tool_handler.registry();
-        drop(tool_handler); 
+        drop(tool_handler);
 
         // 3. Clean Processor (No 'rmcp' runtime logic)
         let processor = Arc::new(McpProcessor::new(self, registry));
 
         // 4. Run loop
         let mut runner = TransportRunner::new(transport, processor);
-        runner.run().await.map_err(|e| anyhow::anyhow!("Transport error: {}", e))
+        runner
+            .run()
+            .await
+            .map_err(|e| anyhow::anyhow!("Transport error: {}", e))
     }
 
     /// Serve in HTTP mode - proper MCP JSON-RPC over HTTP
@@ -199,7 +207,11 @@ impl Server {
         use serde_json::Value;
 
         let addr = format!("{}:{}", self.config.server.host, self.config.server.port);
-        info!("Starting HTTP MCP server on {} with {} tools", addr, self.tool_count());
+        info!(
+            "Starting HTTP MCP server on {} with {} tools",
+            addr,
+            self.tool_count()
+        );
 
         // 1. Define State
         #[derive(Clone)]
@@ -247,7 +259,9 @@ impl Server {
                 }
                 Some("tools/call") => {
                     let params = payload.get("params");
-                    match params.and_then(|p| serde_json::from_value::<CallToolRequestParam>(p.clone()).ok()) {
+                    match params.and_then(|p| {
+                        serde_json::from_value::<CallToolRequestParam>(p.clone()).ok()
+                    }) {
                         Some(params) => {
                             let result = app_state.server.call_tool_simple(params).await;
                             match result {
@@ -318,10 +332,13 @@ impl Server {
         })
     }
 
-    async fn call_tool_simple(&self, request: CallToolRequestParam) -> Result<CallToolResult, McpError> {
+    async fn call_tool_simple(
+        &self,
+        request: CallToolRequestParam,
+    ) -> Result<CallToolResult, McpError> {
         let tool_name = request.name.as_ref();
         let tool_handler = self.tool_handler.lock().await;
-        
+
         if let Some(executor) = tool_handler.get_executor(tool_name) {
             let executor = Arc::clone(&executor);
             drop(tool_handler);
@@ -380,7 +397,7 @@ impl Server {
                 .block_on(async { self.tool_handler.lock().await.tool_count() })
         })
     }
-    
+
     pub async fn get_tool_registry(&self) -> Arc<ToolRegistry> {
         let tool_handler_guard = self.tool_handler.lock().await;
         tool_handler_guard.registry()
@@ -390,6 +407,7 @@ impl Server {
 pub async fn create_server(config: AppConfig) -> Result<Server> {
     let adjuster = Adjuster::new();
     let parser = Box::new(SwaggerParser::new(adjuster));
-    let requester = HttpRequester::new(&config.endpoint).context("Failed to create HTTP requester")?;
+    let requester =
+        HttpRequester::new(&config.endpoint).context("Failed to create HTTP requester")?;
     Server::new(config, parser, requester).await
 }

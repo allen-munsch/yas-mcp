@@ -69,7 +69,7 @@ impl HttpRequester {
             let path = path.clone();
             let static_headers = static_headers.clone();
             let client = client.clone();
-            
+
             // Capture these for the closure
             let known_header_params = known_header_params.clone();
             let known_query_params = known_query_params.clone();
@@ -80,14 +80,14 @@ impl HttpRequester {
                 // Parse the main input
                 let params_value: serde_json::Value = serde_json::from_str(&params_json)
                     .context("Failed to parse parameters as JSON")?;
-                
+
                 // Convert to object for manipulation (so we can remove fields as we use them)
                 let mut active_params = params_value.as_object().cloned().unwrap_or_default();
 
                 // 1. Build URL & Handle Path Params
                 // (Iterate all params to see if they match URL placeholders)
                 let mut url = format!("{}{}", base_url, path);
-                
+
                 // We collect keys to remove to avoid modification during iteration
                 let mut used_keys = Vec::new();
                 for (key, value) in &active_params {
@@ -127,7 +127,8 @@ impl HttpRequester {
                             request_builder = request_builder.header(header_key.as_str(), s);
                         } else {
                             // Convert numbers/bools to string for header
-                            request_builder = request_builder.header(header_key.as_str(), val.to_string());
+                            request_builder =
+                                request_builder.header(header_key.as_str(), val.to_string());
                         }
                     }
                 }
@@ -138,7 +139,8 @@ impl HttpRequester {
                         if let Some(s) = val.as_str() {
                             request_builder = request_builder.query(&[(query_key, s)]);
                         } else {
-                            request_builder = request_builder.query(&[(query_key, val.to_string())]);
+                            request_builder =
+                                request_builder.query(&[(query_key, val.to_string())]);
                         }
                     }
                 }
@@ -174,7 +176,10 @@ impl HttpRequester {
             .headers()
             .iter()
             .filter_map(|(key, value)| {
-                value.to_str().ok().map(|v| (key.as_str().to_string(), v.to_string()))
+                value
+                    .to_str()
+                    .ok()
+                    .map(|v| (key.as_str().to_string(), v.to_string()))
             })
             .collect();
 

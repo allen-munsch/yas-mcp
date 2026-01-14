@@ -56,7 +56,7 @@ impl SwaggerParser {
                         map.insert("properties".to_string(), serde_json::json!({}));
                     }
                 }
-                
+
                 if let Some(Value::Object(props)) = map.get_mut("properties") {
                     for v in props.values_mut() {
                         Self::ensure_strict_object(v);
@@ -77,15 +77,18 @@ impl SwaggerParser {
     }
 
     fn normalize_tool_name(path: &str, method: &str) -> String {
-        let path = path.replace('/', "_").replace(['{', '}'], "__").replace('-', "_");
+        let path = path
+            .replace('/', "_")
+            .replace(['{', '}'], "__")
+            .replace('-', "_");
         let name = format!("{}_{}", method.to_lowercase(), path);
         let re = Regex::new(r"[^a-zA-Z0-9_-]").unwrap();
         let cleaned = re.replace_all(&name, "").to_string();
-        
+
         if cleaned.len() > 60 {
-             cleaned[..60].to_string()
+            cleaned[..60].to_string()
         } else {
-             cleaned
+            cleaned
         }
     }
 
@@ -102,7 +105,8 @@ impl SwaggerParser {
             ReferenceOr::Reference { .. } => return serde_json::json!({ "type": "string" }),
         };
 
-        let description = Self::clean_description(schema.schema_data.description.as_deref().unwrap_or(""));
+        let description =
+            Self::clean_description(schema.schema_data.description.as_deref().unwrap_or(""));
 
         match &schema.schema_kind {
             SchemaKind::Type(Type::String(_)) => serde_json::json!({
@@ -126,11 +130,13 @@ impl SwaggerParser {
                 for (name, prop_schema) in &obj.properties {
                     let inner_schema = match prop_schema {
                         ReferenceOr::Item(x) => ReferenceOr::Item(*x.clone()),
-                        ReferenceOr::Reference { reference } => ReferenceOr::Reference { reference: reference.clone() }
+                        ReferenceOr::Reference { reference } => ReferenceOr::Reference {
+                            reference: reference.clone(),
+                        },
                     };
                     properties.insert(name.clone(), self.schema_to_json_schema(&inner_schema));
                 }
-                
+
                 let mut json = serde_json::json!({
                     "type": "object",
                     "properties": properties,
@@ -149,10 +155,12 @@ impl SwaggerParser {
                     Some(items_ref) => {
                         let inner_schema = match items_ref {
                             ReferenceOr::Item(x) => ReferenceOr::Item(*x.clone()),
-                            ReferenceOr::Reference { reference } => ReferenceOr::Reference { reference: reference.clone() }
+                            ReferenceOr::Reference { reference } => ReferenceOr::Reference {
+                                reference: reference.clone(),
+                            },
                         };
                         self.schema_to_json_schema(&inner_schema)
-                    },
+                    }
                     None => serde_json::json!({ "type": "string" }),
                 };
                 serde_json::json!({
@@ -209,9 +217,15 @@ impl SwaggerParser {
         for param in &operation.parameters {
             if let ReferenceOr::Item(param) = param {
                 let param_data = match param {
-                    Parameter::Query { parameter_data, .. } if param_type == "query" => parameter_data,
-                    Parameter::Path { parameter_data, .. } if param_type == "path" => parameter_data,
-                    Parameter::Header { parameter_data, .. } if param_type == "header" => parameter_data,
+                    Parameter::Query { parameter_data, .. } if param_type == "query" => {
+                        parameter_data
+                    }
+                    Parameter::Path { parameter_data, .. } if param_type == "path" => {
+                        parameter_data
+                    }
+                    Parameter::Header { parameter_data, .. } if param_type == "header" => {
+                        parameter_data
+                    }
                     _ => continue,
                 };
 
@@ -271,13 +285,15 @@ impl SwaggerParser {
 
         // Iterate directly over the vectors (No "if let Some")
         for param in &route.method_config.query_params {
-            if let Some((param_schema, is_required)) = self.get_parameter_schema(route, param, "query") {
+            if let Some((param_schema, is_required)) =
+                self.get_parameter_schema(route, param, "query")
+            {
                 properties.insert(param.to_string(), param_schema);
                 if is_required {
                     required.push(param.to_string());
                 }
             } else {
-                 properties.insert(
+                properties.insert(
                     param.to_string(),
                     serde_json::json!({
                         "type": "string",
@@ -288,13 +304,15 @@ impl SwaggerParser {
         }
 
         for param in &route.method_config.header_params {
-            if let Some((param_schema, is_required)) = self.get_parameter_schema(route, param, "header") {
+            if let Some((param_schema, is_required)) =
+                self.get_parameter_schema(route, param, "header")
+            {
                 properties.insert(param.to_string(), param_schema);
                 if is_required {
                     required.push(param.to_string());
                 }
             } else {
-                 properties.insert(
+                properties.insert(
                     param.to_string(),
                     serde_json::json!({
                         "type": "string",
@@ -312,13 +330,24 @@ impl SwaggerParser {
         }
 
         let mut schema = Map::new();
-        schema.insert("type".to_string(), serde_json::Value::String("object".to_string()));
-        schema.insert("properties".to_string(), serde_json::Value::Object(properties));
+        schema.insert(
+            "type".to_string(),
+            serde_json::Value::String("object".to_string()),
+        );
+        schema.insert(
+            "properties".to_string(),
+            serde_json::Value::Object(properties),
+        );
 
         if !required.is_empty() {
             schema.insert(
                 "required".to_string(),
-                serde_json::Value::Array(required.into_iter().map(serde_json::Value::String).collect()),
+                serde_json::Value::Array(
+                    required
+                        .into_iter()
+                        .map(serde_json::Value::String)
+                        .collect(),
+                ),
             );
         }
 
@@ -327,7 +356,7 @@ impl SwaggerParser {
 
     fn generate_tool(&self, route: &RouteConfig) -> rmcp::model::Tool {
         let tool_name = Self::normalize_tool_name(&route.path, &route.method);
-        
+
         let raw_desc = format!("{} {} - {}", route.method, route.path, route.description);
         let description = Self::clean_description(&raw_desc);
 
@@ -336,7 +365,7 @@ impl SwaggerParser {
         Self::ensure_strict_object(&mut input_val);
 
         let final_input = input_val.as_object().unwrap().clone();
-        
+
         rmcp::model::Tool {
             name: tool_name.into(),
             title: None,
@@ -353,7 +382,7 @@ impl SwaggerParser {
 impl Parser for SwaggerParser {
     fn init(&mut self, swagger_path: &str, _adjustments_path: Option<&str>) -> Result<()> {
         let data = std::fs::read(swagger_path).context("Failed to read Swagger file")?;
-        
+
         let mut json_value: serde_json::Value = if let Ok(v) = serde_json::from_slice(&data) {
             v
         } else if let Ok(v) = serde_yaml::from_slice::<serde_json::Value>(&data) {
@@ -385,11 +414,12 @@ impl Parser for SwaggerParser {
         }
         sanitize_refs(&mut json_value);
 
-        let doc: OpenAPI = serde_json::from_value(json_value).context("Failed to parse into strict OpenAPI struct")?;
+        let doc: OpenAPI = serde_json::from_value(json_value)
+            .context("Failed to parse into strict OpenAPI struct")?;
         self.doc = Some(doc);
-        
+
         if let Some(doc) = &self.doc {
-             for (path, item) in &doc.paths.paths {
+            for (path, item) in &doc.paths.paths {
                 let item = match item {
                     ReferenceOr::Item(i) => i,
                     _ => continue,
@@ -408,7 +438,7 @@ impl Parser for SwaggerParser {
                         let mut query_params = Vec::new();
                         let mut header_params = Vec::new();
 
-                         for p in &op.parameters {
+                        for p in &op.parameters {
                             match p {
                                 ReferenceOr::Item(Parameter::Query { parameter_data, .. }) => {
                                     query_params.push(parameter_data.name.clone());
@@ -418,12 +448,16 @@ impl Parser for SwaggerParser {
                                 }
                                 _ => {}
                             }
-                         }
+                        }
 
                         let route_config = RouteConfig {
                             path: path.clone(),
                             method: method.to_string(),
-                            description: op.summary.clone().or(op.description.clone()).unwrap_or_default(),
+                            description: op
+                                .summary
+                                .clone()
+                                .or(op.description.clone())
+                                .unwrap_or_default(),
                             method_config: crate::internal::requester::types::MethodConfig {
                                 query_params: query_params,
                                 header_params: header_params,
@@ -434,15 +468,12 @@ impl Parser for SwaggerParser {
                         };
 
                         let tool = self.generate_tool(&route_config);
-                        self.cache_tools.push(RouteTool {
-                            route_config,
-                            tool,
-                        });
+                        self.cache_tools.push(RouteTool { route_config, tool });
                     }
                 }
-             }
+            }
         }
-        
+
         Ok(())
     }
 
