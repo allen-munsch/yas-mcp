@@ -10,29 +10,29 @@ license = "Apache-2.0"
 test-utils = []
 
 [dependencies]
-tokio = { version = "1.0", features = ["full"] }
+tokio = { version = "1.49", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
-clap = { version = "4.0", features = ["derive"] }
+clap = { version = "4.5", features = ["derive"] }
 tracing = "0.1"
 anyhow = "1.0"
 thiserror = "2.0"
 
 # MCP SDK
-rmcp = { version = "0.12.0", features = [
+rmcp = { version = "0.14.0", features = [
     "transport-async-rw", 
     "transport-streamable-http-server",
     "transport-streamable-http-server-session", 
     "transport-worker",
     "server",
     ] }
-rmcp-macros = "0.9.0"
-schemars = "1.1"
+rmcp-macros = "0.14.0"
+schemars = "1.2"
 
 # Web/HTTP dependencies
 reqwest = { version = "0.12", features = ["json"] }
-axum = "0.8.7"
+axum = "0.8.8"
 tower = "0.5"
 tower-http = { version = "0.6", features = ["cors"] }
 
@@ -49,19 +49,19 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 crossterm = "0.29"
 async-trait = "0.1.89"
 futures-util = "0.3.31"
-tokio-stream = "0.1.17"
+tokio-stream = "0.1.18"
 async-stream = "0.3.6"
-tokio-util = "0.7.17"
+tokio-util = "0.7.18"
 futures = "0.3.31"
-uuid = "1.18.1"
-regex = "1.10.4"
+uuid = "1.20.0"
+regex = "1.12.3"
 chrono = { version = "0.4", features = ["serde"] }
 
 [dev-dependencies]
 tempfile = "3"
 
 [build-dependencies]
-vergen = { version = "9.0.6", features = ["build", "si", "rustc", "cargo"] }
+vergen = { version = "9.1.0", features = ["build", "si", "rustc", "cargo"] }
 anyhow = "1.0"
 
 [[test]]
