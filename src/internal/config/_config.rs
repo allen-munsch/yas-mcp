@@ -162,7 +162,7 @@ pub struct OAuthConfig {
 }
 
 impl AppConfig {
-    pub fn load() -> Result<Self, ConfigError> {
+    pub fn load(app_config_path: Option<&str>) -> Result<Self, ConfigError> {
         let config_builder = Config::builder()
             // Start with default values
             .set_default("server.port", 3000)?
@@ -176,6 +176,7 @@ impl AppConfig {
             .set_default("logging.color", true)?
             .set_default("endpoint.auth_type", false)?
             // Load config files in order of precedence
+            .add_source(File::with_name(app_config_path.unwrap_or("config")).required(false))
             .add_source(File::with_name("config").required(false))
             .add_source(File::with_name("/etc/yas-mcp/config").required(false))
             .add_source(File::with_name("/config/config").required(false))
@@ -228,7 +229,10 @@ impl AppConfig {
     }
 
     pub fn load_from_args(matches: &clap::ArgMatches) -> Result<Self, ConfigError> {
-        let mut config = Self::load()?;
+        // Extract the config path from CLI matches first
+        let config_path = matches.get_one::<String>("config").map(|s| s.as_str());
+        // Pass it into the newly updated load function
+        let mut config = Self::load(config_path)?;
 
         // Override with CLI args if provided
         if let Some(swagger_file) = matches.get_one::<String>("swagger-file") {

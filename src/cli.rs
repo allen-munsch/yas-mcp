@@ -79,9 +79,10 @@ pub fn parse_config(matches: &clap::ArgMatches) -> anyhow::Result<AppConfig> {
     let port = matches.get_one::<u16>("port").copied().unwrap_or(3000);
 
     let endpoint_url = matches.get_one::<String>("endpoint").map(|s| s.to_string());
-
+    let config_arg = matches.get_one::<String>("config").map(|s| s.as_str());
+    
     // Try to load from config file first, fall back to CLI args
-    match AppConfig::load() {
+    match AppConfig::load(config_arg) {
         Ok(mut config) => {
             // Override with CLI values
             config.swagger_file = swagger_file;
