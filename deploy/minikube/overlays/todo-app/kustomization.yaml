@@ -1,0 +1,41 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: yas-mcp
+
+resources:
+  - ../../base
+
+nameSuffix: -todo
+
+commonLabels:
+  app.kubernetes.io/instance: todo-app
+
+configMapGenerator:
+  - name: yas-mcp-spec
+    behavior: replace
+    files:
+      - openapi.yaml=../../../examples/todo-app/openapi.yaml
+  - name: yas-mcp-adjustments
+    behavior: replace
+    files:
+      - adjustments.yaml=../../../examples/todo-app/adjustments.yaml
+
+patches:
+  - target:
+      kind: Deployment
+      name: yas-mcp
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/args/12
+        value: "todo-api"
+  - target:
+      kind: Ingress
+      name: yas-mcp
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: todo-mcp.example.com
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: todo-mcp.example.com

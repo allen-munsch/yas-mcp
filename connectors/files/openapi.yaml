@@ -1,0 +1,117 @@
+openapi: "3.0.3"
+info:
+  title: Local Filesystem Connector
+  version: "1.0.0"
+
+servers:
+  - url: file://
+
+paths:
+  /list:
+    post:
+      operationId: listDirectory
+      summary: List files in a directory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                path:
+                  type: string
+                  description: Absolute path to directory
+                pattern:
+                  type: string
+                  description: Glob pattern (e.g., *.md)
+              required: [path]
+      responses:
+        "200":
+          description: File list
+
+  /read:
+    post:
+      operationId: readFile
+      summary: Read file contents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                path:
+                  type: string
+                  description: Absolute path to file
+                max_bytes:
+                  type: integer
+                  description: Truncate after N bytes (default 100KB)
+              required: [path]
+      responses:
+        "200":
+          description: File content
+
+  /write:
+    post:
+      operationId: writeFile
+      summary: Write content to a file (creates if not exists)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                path:
+                  type: string
+                  description: Absolute path to file
+                content:
+                  type: string
+                  description: Content to write
+              required: [path, content]
+      responses:
+        "200":
+          description: File written
+
+  /search:
+    post:
+      operationId: searchFiles
+      summary: Recursive grep for pattern
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                path:
+                  type: string
+                  description: Directory to search in
+                pattern:
+                  type: string
+                  description: Regex or literal pattern
+                max_results:
+                  type: integer
+                  default: 50
+              required: [path, pattern]
+      responses:
+        "200":
+          description: Matching files and line numbers
+
+  /info:
+    post:
+      operationId: fileInfo
+      summary: Get file metadata (size, modified, type)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                path:
+                  type: string
+              required: [path]
+      responses:
+        "200":
+          description: File metadata

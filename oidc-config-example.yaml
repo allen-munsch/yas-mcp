@@ -1,0 +1,72 @@
+# Example OIDC Plug-and-Play configuration
+# Paste this into config.yaml to enable OIDC authentication
+#
+# yas-mcp auto-discovers provider endpoints from:
+#   GET {issuer_url}/.well-known/openid-configuration
+#
+# Supported flows:
+#   - Authorization Code (with PKCE)
+#   - Client Credentials
+#   - Refresh Token
+
+oidc:
+  # Session management
+  session:
+    ttl: 3600              # Session lifetime in seconds
+    refresh_buffer: 300    # Refresh token when <5min remaining
+    max_sessions_per_user: 10
+
+  # JWT validation
+  validation:
+    verify_iss: true
+    verify_aud: true
+    verify_exp: true
+    verify_nbf: false
+    leeway: 60             # Clock skew tolerance in seconds
+
+  # Default provider (when no route filter matches)
+  default_provider: corporate-sso
+
+  # Provider definitions
+  # Each provider is auto-discovered via .well-known/openid-configuration
+  providers:
+    # Example 1: Corporate SSO (Keycloak, Okta, Auth0, Azure AD, etc.)
+    - name: corporate-sso
+      issuer_url: https://auth.corp.example.com
+      client_id: ${OIDC_CLIENT_ID}
+      client_secret: ${OIDC_CLIENT_SECRET}
+      scopes:
+        - openid
+        - profile
+        - email
+      route_filter: "/api/corp/**"   # Only protect corporate API routes
+
+    # Example 2: Partner API (separate identity provider)
+    - name: partner-api
+      issuer_url: https://partner.auth.example.com
+      client_id: ${PARTNER_CLIENT_ID}
+      client_secret: ${PARTNER_CLIENT_SECRET}
+      scopes:
+        - openid
+      route_filter: "/api/partner/**"
+
+    # Example 3: Public routes (no auth)
+    - name: public
+      # No issuer_url needed — this is a routing marker only
+      issuer_url: ""
+      client_id: ""
+      client_secret: ""
+      scopes: []
+      route_filter: "/api/public/**"
+
+  # No-auth provider (routes matching this provider skip authentication)
+  no_auth_provider: public
+
+# --- Legacy OAuth2 config (still supported) ---
+# oauth:
+#   enabled: true
+#   provider: github
+#   client_id: your_client_id
+#   client_secret: your_client_secret
+#   scopes: [read:user, user:email]
+#   redirect_uri: http://localhost:3000/oauth/callback

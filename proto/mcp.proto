@@ -1,0 +1,140 @@
+// MCP over gRPC — Experimental Service Definition
+//
+// ⚠️ EXPERIMENTAL — This is our best guess at what MCP-over-gRPC will look like.
+//    The MCP community has not yet standardized a protobuf schema.
+//    When they do, we'll swap this file and update the transport.
+//
+// Enabled via: cargo build --features grpc-experimental
+// CLI flag:    yas-mcp --mode grpc
+//
+// Design notes:
+//   - Each MCP method maps to a unary or server-streaming RPC
+//   - tools/call → server-streaming so long-running tools can stream results
+//   - initialize → unary (handshake)
+//   - tools/list → unary (list metadata)
+//   - ping → unary (keepalive)
+//   - The service name and method names are intentionally generic —
+//     easy to rename when the standard is finalized.
+
+syntax = "proto3";
+
+package mcp.v1;
+
+// ── Service Definition ────────────────────────────────────────────────────
+
+service McpService {
+  // Handshake: exchange capabilities and protocol version
+  rpc Initialize(InitializeRequest) returns (InitializeResponse);
+
+  // List all available tools with their schemas
+  rpc ListTools(ListToolsRequest) returns (ListToolsResponse);
+
+  // Call a tool — server-streaming so results can arrive incrementally
+  rpc CallTool(CallToolRequest) returns (stream CallToolResponse);
+
+  // Keepalive
+  rpc Ping(PingRequest) returns (PingResponse);
+}
+
+// ── Initialize ────────────────────────────────────────────────────────────
+
+message InitializeRequest {
+  string protocol_version = 1;       // e.g. "2024-11-05"
+  ClientCapabilities capabilities = 2;
+  ClientInfo client_info = 3;
+}
+
+message ClientCapabilities {
+  bool tools = 1;                    // client supports tools
+  bool streaming = 2;                // client supports streaming responses
+}
+
+message ClientInfo {
+  string name = 1;
+  string version = 2;
+}
+
+message InitializeResponse {
+  string protocol_version = 1;
+  ServerCapabilities capabilities = 2;
+  ServerInfo server_info = 3;
+  string instructions = 4;           // optional instructions for the client
+}
+
+message ServerCapabilities {
+  bool tools = 1;
+  bool streaming = 2;
+}
+
+message ServerInfo {
+  string name = 1;
+  string version = 2;
+}
+
+// ── Tools ─────────────────────────────────────────────────────────────────
+
+message ListToolsRequest {
+  string cursor = 1;                 // pagination cursor (optional)
+}
+
+message ListToolsResponse {
+  repeated Tool tools = 1;
+  string next_cursor = 2;            // pagination cursor for next page
+}
+
+message Tool {
+  string name = 1;
+  string title = 2;                  // optional human-readable title
+  string description = 3;            // optional description for the AI
+  string input_schema = 4;           // JSON Schema as string
+  string output_schema = 5;          // JSON Schema as string (optional)
+}
+
+// ── Tool Call ─────────────────────────────────────────────────────────────
+
+message CallToolRequest {
+  string name = 1;                   // tool name
+  string arguments = 2;              // JSON-encoded arguments
+  map<string, string> meta = 3;      // optional metadata
+}
+
+message CallToolResponse {
+  // Multiple response messages can be streamed for a single tool call.
+  // The final message has is_final = true.
+
+  bool is_final = 1;
+
+  oneof content {
+    TextContent text = 2;
+    ImageContent image = 3;
+    ResourceContent resource = 4;
+  }
+
+  bool is_error = 5;                 // true if this is an error response
+  string error_message = 6;          // error details (if is_error)
+}
+
+message TextContent {
+  string text = 1;
+}
+
+message ImageContent {
+  bytes data = 1;
+  string mime_type = 2;
+}
+
+message ResourceContent {
+  string uri = 1;
+  string mime_type = 2;
+  string text = 3;
+}
+
+// ── Ping ──────────────────────────────────────────────────────────────────
+
+message PingRequest {
+  // intentionally empty
+}
+
+message PingResponse {
+  // intentionally empty
+}

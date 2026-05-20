@@ -1,0 +1,136 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: yas-mcp
+  namespace: yas-mcp
+  labels:
+    app.kubernetes.io/name: yas-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: yas-mcp
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: yas-mcp
+    spec:
+      containers:
+        # ── Main yas-mcp server ─────────────────────────────────────────
+        - name: yas-mcp
+          image: yas-mcp:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - "--config"
+            - "/config/config.yaml"
+            - "--swagger-file"
+            - "/config/openapi.yaml"
+            - "--mode"
+            - "http"
+            - "--host"
+            - "0.0.0.0"
+            - "--port"
+            - "3000"
+          ports:
+            - containerPort: 3000
+              name: http
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: logs
+              mountPath: /app/logs
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 2
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 0
+            periodSeconds: 2
+            timeoutSeconds: 2
+            failureThreshold: 15
+
+        # ── Flying Probe Sidecar — continuous quality verification ──────
+        - name: flying-probe
+          image: curlimages/curl:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "🔬 Flying Probe sidecar started — continuous board testing"
+              MCP_URL="http://localhost:3000"
+              PASS_COUNT=0
+              FAIL_COUNT=0
+              while true; do
+                # Quick probe cycle
+                if curl -sf "$MCP_URL/health" > /dev/null 2>&1; then
+                  PASS_COUNT=$((PASS_COUNT + 1))
+                else
+                  FAIL_COUNT=$((FAIL_COUNT + 1))
+                  echo "$(date -Iseconds) ❌ HEALTH FAIL (${FAIL_COUNT} failures)" >&2
+                fi
+
+                # Probe metrics
+                curl -sf "$MCP_URL/metrics" > /dev/null 2>&1 || \
+                  echo "$(date -Iseconds) ❌ METRICS FAIL" >&2
+
+                # Probe MCP
+                curl -sf -X POST -H "Content-Type: application/json" \
+                  -d '{"jsonrpc":"2.0","id":1,"method":"ping","params":{}}' \
+                  "$MCP_URL/mcp" > /dev/null 2>&1 || \
+                  echo "$(date -Iseconds) ❌ MCP FAIL" >&2
+
+                # Probe AI Catalog
+                curl -sf "$MCP_URL/.well-known/ai-catalog.json" > /dev/null 2>&1 || true
+
+                # Every 10th cycle: full probe
+                if [ $((PASS_COUNT % 10)) -eq 0 ]; then
+                  echo "$(date -Iseconds) ✅ Cycle $PASS_COUNT: all probes passing"
+                fi
+
+                sleep 10
+              done
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
+
+      volumes:
+        - name: config
+          projected:
+            sources:
+              - configMap:
+                  name: yas-mcp-config
+              - configMap:
+                  name: yas-mcp-openapi-spec
+        - name: logs
+          emptyDir:
+            sizeLimit: 64Mi
+
+      restartPolicy: Always

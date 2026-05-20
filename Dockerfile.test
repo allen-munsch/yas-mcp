@@ -1,0 +1,32 @@
+FROM rust:1.91-slim-bookworm
+
+# Install test dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    pkg-config \
+    libssl-dev \
+    curl \
+    jq \
+    wget \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Pre-copy Cargo.toml for dependency caching
+COPY Cargo.toml Cargo.lock ./
+COPY src/ src/
+COPY tests/ tests/
+COPY examples/ examples/
+COPY adjustments.yaml ./
+COPY configs/e2e-config.yaml ./e2e-config.yaml
+COPY scripts/ scripts/
+COPY benches/ benches/
+
+# Pre-build dependencies (this layer is cached)
+RUN cargo build --tests --features=test-utils 2>&1 || echo "Build prepared"
+
+# Create test output directory
+RUN mkdir -p /app/test-results
+
+# Default: run unit tests
+CMD ["cargo", "test", "--lib"]

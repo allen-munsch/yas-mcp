@@ -1,0 +1,100 @@
+openapi: "3.0.3"
+info:
+  title: Slack Connector
+  version: "1.0.0"
+
+servers:
+  - url: https://slack.com/api
+
+security:
+  - tokenAuth: []
+
+paths:
+  /chat.postMessage:
+    post:
+      operationId: postMessage
+      summary: Post a message to a Slack channel
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                channel: { type: string, description: "Channel ID or name" }
+                text: { type: string, description: "Message text (markdown)" }
+                thread_ts: { type: string, description: "Thread timestamp to reply to" }
+              required: [channel]
+      responses:
+        "200":
+          description: Message posted
+
+  /chat.update:
+    post:
+      operationId: updateMessage
+      summary: Update a posted message
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                channel: { type: string }
+                ts: { type: string, description: "Message timestamp to update" }
+                text: { type: string }
+              required: [channel, ts]
+      responses:
+        "200":
+          description: Message updated
+
+  /conversations.list:
+    get:
+      operationId: listChannels
+      summary: List public channels
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 100 }
+      responses:
+        "200":
+          description: Channel list
+
+  /conversations.history:
+    get:
+      operationId: getHistory
+      summary: Get channel message history
+      parameters:
+        - name: channel
+          in: query
+          required: true
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 10 }
+      responses:
+        "200":
+          description: Message history
+
+  /search.messages:
+    get:
+      operationId: searchMessages
+      summary: Search messages across workspace
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema: { type: string }
+        - name: count
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        "200":
+          description: Search results
+
+  /users.list:
+    get:
+      operationId: listUsers
+      summary: List workspace users
+      responses:
+        "200":
+          description: User list

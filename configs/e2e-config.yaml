@@ -1,0 +1,38 @@
+# Test configuration — enables A2A, auth middleware, and secrets for e2e testing
+server:
+  mode: http
+  host: 0.0.0.0
+  port: 3000
+  name: "yas-mcp-e2e-test"
+  version: "0.1.0"
+
+logging:
+  level: debug
+  format: compact
+  color: false
+
+endpoint:
+  base_url: "http://prism:4010"
+
+# Enable A2A for e2e testing
+a2a:
+  enabled: true
+  agent_card_name: "E2E Test Agent"
+  agent_card_description: "Agent for end-to-end testing"
+  streaming_enabled: true
+  task_ttl: 300
+  max_concurrent_tasks: 50
+
+# Auth middleware with secret references (env:// and file:// only — no hardcoded keys)
+auth:
+  middleware_chain:
+    - type: bearer_token
+      route_filter: "/api/protected/**"
+      config:
+        token: "env://TEST_BEARER_TOKEN"
+
+# Secrets configuration
+secrets:
+  backends: []
+
+swagger_file: "/app/config/swagger.yaml"

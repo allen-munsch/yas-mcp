@@ -1,0 +1,67 @@
+# yas-mcp OIDC Provider Registry
+# 
+# Drop new providers here — no Rust code changes needed.
+# yas-mcp auto-loads this file on startup and exposes the providers
+# as configurable options for OIDC authentication.
+#
+# Each provider uses OIDC Discovery (.well-known/openid-configuration)
+# to auto-resolve authorization, token, userinfo, and JWKS endpoints.
+
+providers:
+  okta:
+    issuer_url_template: "https://{domain}/oauth2/default"
+    doc_url: "https://developer.okta.com/docs/reference/api/oidc/"
+    description: "Okta Workforce Identity"
+    
+  auth0:
+    issuer_url_template: "https://{domain}"
+    doc_url: "https://auth0.com/docs/authenticate/protocols/openid-connect-protocol"
+    description: "Auth0 Universal Identity Platform"
+    
+  azure_ad:
+    issuer_url_template: "https://login.microsoftonline.com/{tenant_id}/v2.0"
+    doc_url: "https://learn.microsoft.com/en-us/entra/identity-platform/v2-protocols-oidc"
+    description: "Microsoft Entra ID (Azure AD)"
+
+  google:
+    issuer_url_template: "https://accounts.google.com"
+    doc_url: "https://developers.google.com/identity/openid-connect/openid-connect"
+    description: "Google Identity Platform"
+    well_known_override: "https://accounts.google.com/.well-known/openid-configuration"
+
+  github:
+    issuer_url_template: "https://github.com"
+    doc_url: "https://docs.github.com/en/apps/oauth-apps"
+    description: "GitHub OAuth (OAuth2, not full OIDC — use generic flow)"
+    note: "GitHub uses OAuth2, not OIDC. Use legacy oauth.provider: github config."
+
+  keycloak:
+    issuer_url_template: "https://{host}:{port}/realms/{realm}"
+    doc_url: "https://www.keycloak.org/docs/latest/server_admin/"
+    description: "Keycloak Open Source Identity and Access Management"
+
+  authentik:
+    issuer_url_template: "https://{domain}/application/o/{slug}/"
+    doc_url: "https://goauthentik.io/docs/providers/oauth2/"
+    description: "Authentik Open Source Identity Provider"
+
+  zitadel:
+    issuer_url_template: "https://{domain}"
+    doc_url: "https://zitadel.com/docs/apis/openidoauth/endpoints"
+    description: "ZITADEL Cloud-Native Identity Platform"
+
+  fusionauth:
+    issuer_url_template: "https://{domain}"
+    doc_url: "https://fusionauth.io/docs/lifecycle/authenticate-users/oauth/"
+    description: "FusionAuth Complete Auth Platform"
+
+  aws_cognito:
+    issuer_url_template: "https://cognito-idp.{region}.amazonaws.com/{user_pool_id}"
+    doc_url: "https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-userpools-server-contract-reference.html"
+    description: "AWS Cognito User Pools"
+
+  # Generic fallback for any OIDC-compliant provider
+  generic_oidc:
+    issuer_url_template: "https://{domain}"
+    doc_url: ""
+    description: "Any OIDC-compliant provider (auto-discovered via .well-known)"

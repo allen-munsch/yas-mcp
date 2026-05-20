@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: yas-mcp
+  namespace: yas-mcp
+  labels:
+    app.kubernetes.io/name: yas-mcp
+spec:
+  selector:
+    app.kubernetes.io/name: yas-mcp
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+      protocol: TCP
+  type: ClusterIP

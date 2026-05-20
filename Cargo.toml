@@ -1,0 +1,92 @@
+[package]
+name = "yas-mcp"
+description = "yet another swagger mcp"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"  # Add this line for build scripts
+license = "AGPL-3.0-only"
+
+[features]
+default = []
+test-utils = []
+record-replay = []             # Record/replay API responses (experimental)
+
+[dependencies]
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+clap = { version = "4.0", features = ["derive"] }
+tracing = "0.1"
+anyhow = "1.0"
+thiserror = "2.0"
+
+# MCP SDK
+rmcp = { version = "0.12.0", features = [
+    "transport-async-rw", 
+    "transport-streamable-http-server",
+    "transport-streamable-http-server-session", 
+    "transport-worker",
+    "server",
+    ] }
+rmcp-macros = "0.9.0"
+schemars = "1.1"
+
+# Web/HTTP dependencies
+reqwest = { version = "0.12", features = ["json"] }
+axum = "0.8.7"
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors"] }
+
+# OpenAPI handling
+openapiv3 = { version = "2.0.0-rc.1" }
+
+# Configuration
+config = "0.15"
+
+# Logging
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# For potential TUI (if we keep that functionality)
+crossterm = "0.29"
+async-trait = "0.1.89"
+futures-util = "0.3.31"
+tokio-stream = "0.1.17"
+async-stream = "0.3.6"
+tokio-util = "0.7.17"
+futures = "0.3.31"
+uuid = { version = "1.18.1", features = ["serde"] }
+regex = "1.10.4"
+rand = "0.8"
+sha2 = "0.10"
+base64 = "0.22"
+
+# gRPC
+tonic = "0.12"
+tonic-health = "0.12"
+prost = "0.13"
+prost-types = "0.13"
+chrono = { version = "0.4", features = ["serde"] }
+dashmap = "6"
+glob-match = "0.2"
+prometheus = { version = "0.13", features = ["process"] }
+jsonwebtoken = "9"
+
+[dev-dependencies]
+tempfile = "3"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[build-dependencies]
+vergen = { version = "9.0.6", features = ["build", "si", "rustc", "cargo"] }
+anyhow = "1.0"
+tonic-build = "0.12"
+
+[[test]]
+name = "stdio_protocol_tests"
+path = "tests/stdio_protocol_tests.rs"
+required-features = ["test-utils"]
+
+[[bench]]
+name = "parser_benchmarks"
+harness = false
+required-features = ["test-utils"]

@@ -1,0 +1,85 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: flying-probe
+  namespace: yas-mcp
+  labels:
+    app.kubernetes.io/name: yas-mcp-flying-probe
+spec:
+  # Run every 5 minutes
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 120
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: probe
+              image: curlimages/curl:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  echo "🔬 Flying Probe — Full System Scan"
+                  echo "Target: http://yas-mcp:3000"
+                  echo ""
+
+                  # Copy the probe script inline (no volume mount needed)
+                  MCP_URL="http://yas-mcp:3000"
+                  FAILS=0
+                  TOTAL=0
+
+                  probe() {
+                    TOTAL=$((TOTAL + 1))
+                    if "$@"; then
+                      echo "  ✓ $1"
+                      return 0
+                    else
+                      echo "  ✗ $1"
+                      FAILS=$((FAILS + 1))
+                      return 1
+                    fi
+                  }
+
+                  echo "── Ground Plane ──"
+                  probe "health" curl -sf "$MCP_URL/health" > /dev/null
+                  probe "metrics" curl -sf "$MCP_URL/metrics" > /dev/null
+                  probe "catalog" curl -sf "$MCP_URL/.well-known/ai-catalog.json" > /dev/null
+                  probe "agent-card" curl -sf "$MCP_URL/.well-known/agent-card.json" > /dev/null || true
+
+                  echo "── MCP Protocol ──"
+                  probe "initialize" curl -sf -X POST -H "Content-Type: application/json" \
+                    -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"probe","version":"1.0"}}}' \
+                    "$MCP_URL/mcp" > /dev/null
+
+                  TOOL_COUNT=$(curl -sf -X POST -H "Content-Type: application/json" \
+                    -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
+                    "$MCP_URL/mcp" | jq -r '.result.tools | length' 2>/dev/null || echo "0")
+                  probe "tools/list ($TOOL_COUNT tools)" [ "$TOOL_COUNT" -gt 0 ]
+
+                  probe "ping" curl -sf -X POST -H "Content-Type: application/json" \
+                    -d '{"jsonrpc":"2.0","id":3,"method":"ping","params":{}}' \
+                    "$MCP_URL/mcp" > /dev/null
+
+                  echo "── Tool Calls ──"
+                  if [ "$TOOL_COUNT" -gt 0 ]; then
+                    FIRST_TOOL=$(curl -sf -X POST -H "Content-Type: application/json" \
+                      -d '{"jsonrpc":"2.0","id":4,"method":"tools/list","params":{}}' \
+                      "$MCP_URL/mcp" | jq -r '.result.tools[0].name' 2>/dev/null)
+                    if [ -n "$FIRST_TOOL" ] && [ "$FIRST_TOOL" != "null" ]; then
+                      probe "call $FIRST_TOOL" curl -sf -X POST -H "Content-Type: application/json" \
+                        -d "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"tools/call\",\"params\":{\"name\":\"$FIRST_TOOL\",\"arguments\":{}}}" \
+                        "$MCP_URL/mcp" > /dev/null
+                    fi
+                  fi
+
+                  echo ""
+                  echo "════════════════════════"
+                  echo "Probes: $TOTAL | Failed: $FAILS"
+                  [ "$FAILS" -eq 0 ] && echo "✅ ALL CLEAN" && exit 0
+                  echo "❌ FAILURES DETECTED" && exit 1

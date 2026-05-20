@@ -1,0 +1,119 @@
+openapi: "3.0.3"
+info:
+  title: Jira Connector
+  version: "1.0.0"
+
+servers:
+  - url: https://{domain}.atlassian.net/rest/api/3
+    variables:
+      domain:
+        default: your-domain
+
+security:
+  - basicAuth: []
+
+paths:
+  /search:
+    get:
+      operationId: searchIssues
+      summary: Search issues with JQL
+      parameters:
+        - name: jql
+          in: query
+          required: true
+          schema: { type: string }
+        - name: maxResults
+          in: query
+          schema: { type: integer, default: 20 }
+        - name: fields
+          in: query
+          description: Comma-separated field names
+          schema: { type: string }
+      responses:
+        "200":
+          description: Search results
+
+  /issue:
+    post:
+      operationId: createIssue
+      summary: Create a new issue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fields:
+                  type: object
+                  properties:
+                    project: { type: object }
+                    summary: { type: string }
+                    description: { type: string }
+                    issuetype: { type: object }
+              required: [fields]
+      responses:
+        "201":
+          description: Created issue
+
+  /issue/{issueIdOrKey}:
+    get:
+      operationId: getIssue
+      summary: Get issue details
+      parameters:
+        - name: issueIdOrKey
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Issue details
+
+    put:
+      operationId: updateIssue
+      summary: Update an issue
+      parameters:
+        - name: issueIdOrKey
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fields: { type: object }
+      responses:
+        "204":
+          description: Issue updated
+
+  /issue/{issueIdOrKey}/comment:
+    post:
+      operationId: addComment
+      summary: Add a comment to an issue
+      parameters:
+        - name: issueIdOrKey
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                body: { type: string }
+              required: [body]
+      responses:
+        "201":
+          description: Comment added
+
+  /myself:
+    get:
+      operationId: getCurrentUser
+      summary: Get current user profile
+      responses:
+        "200":
+          description: User profile

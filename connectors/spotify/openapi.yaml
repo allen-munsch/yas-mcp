@@ -1,0 +1,232 @@
+openapi: "3.0.3"
+info:
+  title: Spotify Web API Connector
+  version: "1.0.0"
+
+servers:
+  - url: https://api.spotify.com/v1
+    description: Spotify Web API
+
+security:
+  - OAuth2:
+    - user-read-private
+    - user-read-email
+    - user-read-playback-state
+    - user-modify-playback-state
+    - user-read-currently-playing
+    - playlist-read-private
+    - playlist-modify-private
+
+paths:
+  /me:
+    get:
+      operationId: getProfile
+      summary: Get current user's profile
+      responses:
+        "200":
+          description: User profile
+
+  /me/player:
+    get:
+      operationId: getPlaybackState
+      summary: Get current playback state (what's playing, device, progress)
+      parameters:
+        - name: market
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Currently playing track/episode and context
+        "204":
+          description: No active playback
+
+    put:
+      operationId: transferPlayback
+      summary: Transfer playback to a device
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                device_ids:
+                  type: array
+                  items: { type: string }
+                play: { type: boolean }
+
+  /me/player/play:
+    put:
+      operationId: startPlayback
+      summary: Start/resume playback
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                context_uri: { type: string }
+                uris: { type: array, items: { type: string } }
+                offset: { type: object }
+      responses:
+        "200":
+          description: Playback started
+
+  /me/player/pause:
+    put:
+      operationId: pausePlayback
+      summary: Pause playback
+      responses:
+        "200":
+          description: Playback paused
+
+  /me/player/next:
+    post:
+      operationId: skipNext
+      summary: Skip to next track
+      responses:
+        "200":
+          description: Skipped
+
+  /me/player/previous:
+    post:
+      operationId: skipPrevious
+      summary: Skip to previous track
+      responses:
+        "200":
+          description: Skipped
+
+  /me/player/volume:
+    put:
+      operationId: setVolume
+      summary: Set playback volume
+      parameters:
+        - name: volume_percent
+          in: query
+          required: true
+          schema: { type: integer, minimum: 0, maximum: 100 }
+      responses:
+        "200":
+          description: Volume set
+
+  /me/player/recently-played:
+    get:
+      operationId: getRecentlyPlayed
+      summary: Get recently played tracks
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+        - name: before
+          in: query
+          schema: { type: integer }
+          description: Unix timestamp in ms
+      responses:
+        "200":
+          description: Recently played items
+
+  /me/player/devices:
+    get:
+      operationId: getDevices
+      summary: Get available devices
+      responses:
+        "200":
+          description: List of devices
+
+  /me/top/{type}:
+    get:
+      operationId: getTopItems
+      summary: Get user's top artists or tracks
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [artists, tracks]
+        - name: time_range
+          in: query
+          schema:
+            type: string
+            enum: [short_term, medium_term, long_term]
+            default: medium_term
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+        - name: offset
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Top items
+
+  /search:
+    get:
+      operationId: search
+      summary: Search for tracks, artists, albums, playlists, shows, or episodes
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string }
+        - name: type
+          in: query
+          required: true
+          schema:
+            type: string
+            description: "Comma-separated: track,artist,album,playlist,show,episode"
+        - name: limit
+          in: query
+          schema: { type: integer, default: 10 }
+      responses:
+        "200":
+          description: Search results
+
+  /playlists/{id}:
+    get:
+      operationId: getPlaylist
+      summary: Get a playlist by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Playlist object with tracks
+
+  /playlists/{id}/tracks:
+    get:
+      operationId: getPlaylistTracks
+      summary: Get a playlist's tracks
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+        - name: offset
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Paged list of playlist tracks
+
+components:
+  securitySchemes:
+    OAuth2:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: https://accounts.spotify.com/authorize
+          tokenUrl: https://accounts.spotify.com/api/token
+          scopes:
+            user-read-private: Read user's subscription details
+            user-read-email: Read user's email
+            user-read-playback-state: Read player state
+            user-modify-playback-state: Control playback
+            user-read-currently-playing: Read currently playing
+            playlist-read-private: Read private playlists
+            playlist-modify-private: Modify private playlists

@@ -1,0 +1,28 @@
+server:
+  mode: http
+  port: 3000
+  host: "0.0.0.0"
+  timeout: "30s"
+  name: "yas-mcp"
+  version: "0.2.0"
+
+logging:
+  level: "info"
+  format: "compact"
+  color: false
+
+endpoint:
+  auth_type: "none"
+  base_url: ""
+
+# Default spec — bundled todo-app example for standalone usage.
+# Override via --swagger-file or mount a different config at /app/config.yaml
+swagger_file: "examples/todo-app/openapi.yaml"
+
+# A2A Protocol — enables agent-to-agent communication
+# Serves agent card at /.well-known/agent-card.json
+a2a:
+  enabled: true
+  agent_card_name: "yas-mcp"
+  agent_card_description: "OpenAPI→MCP bridge — auto-generates MCP tools from OpenAPI specs"
+  streaming_enabled: true

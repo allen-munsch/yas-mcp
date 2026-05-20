@@ -1,0 +1,140 @@
+openapi: "3.0.3"
+info:
+  title: Gmail Connector
+  version: "1.0.0"
+  description: Purpose-built Gmail API subset for the Weft personal agent
+
+servers:
+  - url: https://gmail.googleapis.com/gmail/v1
+
+security:
+  - OAuth2:
+    - https://www.googleapis.com/auth/gmail.readonly
+    - https://www.googleapis.com/auth/gmail.send
+
+paths:
+  /users/me/messages:
+    get:
+      operationId: searchMessages
+      summary: Search for messages matching a query
+      parameters:
+        - name: q
+          in: query
+          description: Gmail search query (same syntax as Gmail search box)
+          schema:
+            type: string
+        - name: maxResults
+          in: query
+          description: Max messages to return (1-500)
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: List of message IDs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messages:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        threadId:
+                          type: string
+
+  /users/me/messages/{id}:
+    get:
+      operationId: getMessage
+      summary: Get full message content by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: format
+          in: query
+          description: full, metadata, or raw
+          schema:
+            type: string
+            default: full
+      responses:
+        "200":
+          description: Full message with headers and body
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /users/me/messages/send:
+    post:
+      operationId: sendMessage
+      summary: Send an email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                raw:
+                  type: string
+                  description: Base64-encoded RFC 2822 message
+      responses:
+        "200":
+          description: Sent message info
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /users/me/drafts:
+    post:
+      operationId: createDraft
+      summary: Create a draft email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: object
+                  properties:
+                    raw:
+                      type: string
+                      description: Base64-encoded RFC 2822 message
+                    threadId:
+                      type: string
+      responses:
+        "200":
+          description: Draft created
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /users/me/profile:
+    get:
+      operationId: getProfile
+      summary: Get the authenticated user's Gmail profile
+      responses:
+        "200":
+          description: User profile with email address
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  emailAddress:
+                    type: string
+                  messagesTotal:
+                    type: integer
+                  threadsTotal:
+                    type: integer

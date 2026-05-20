@@ -1,0 +1,856 @@
+openapi: "3.0.3"
+info:
+  title: FlowEngine API
+  description: |
+    Event-driven DAG workflow engine with Firecracker microVM sandboxing.
+    
+    FlowEngine is the workflow orchestration layer of the Weft ecosystem.
+    It executes directed acyclic graphs (DAGs) of typed nodes — shell commands,
+    Firecracker sandbox execution, HTTP requests, Docker containers, API calls,
+    and data transforms.
+    
+    ## Key Features
+    - **DAG execution** with parallel node fan-out
+    - **9+ node types**: shell.exec, zypi.exec, zypi.session_create, docker.run,
+      http.request, api.call, browser.render, transform.json_parse,
+      transform.json_stringify, time.delay, debug.log
+    - **Retry policies** with exponential backoff per node
+    - **Real-time events** via WebSocket (`/api/events`)
+    - **Session chaining** — reuse warm Firecracker VMs across nodes
+    
+    ## Related Services
+    - **Zypi** (`:4000` REST, `:4001` gRPC) — Firecracker microVM sandbox
+    - **MosaicDB** (`:4040`) — property graph, vector search, agent memory
+    - **YAS-MCP** (`:3001`) — OpenAPI→MCP bridge, auto-generates MCP tools from this spec
+  version: "0.1.0"
+  contact:
+    name: Weft Team
+    url: https://github.com/allen-munsch/flowengine
+
+servers:
+  - url: http://localhost:3000
+    description: Local development
+  - url: http://flowengine:3000
+    description: Docker Compose (service name)
+
+tags:
+  - name: health
+    description: Service health and readiness
+  - name: workflows
+    description: Workflow CRUD and execution
+  - name: nodes
+    description: Node type discovery
+  - name: events
+    description: Real-time execution events (WebSocket)
+
+paths:
+  # ── Health ───────────────────────────────────────────────────────────────
+  /health:
+    get:
+      tags: [health]
+      summary: Health check
+      description: Returns service status, version, and name. Used by Docker healthcheck and load balancers.
+      operationId: healthCheck
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: healthy
+                version: "0.1.0"
+                service: flowengine
+
+  # ── Workflows ────────────────────────────────────────────────────────────
+  /api/workflows:
+    get:
+      tags: [workflows]
+      summary: List all workflows
+      description: Returns a summary list of all registered workflows (id, name, description, node count, connection count). Does not return full workflow definitions — use `GET /api/workflows/{id}` for that.
+      operationId: listWorkflows
+      responses:
+        "200":
+          description: List of workflow summaries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkflowSummary"
+
+    post:
+      tags: [workflows]
+      summary: Create a new workflow
+      description: |
+        Register a new workflow definition. The workflow is validated and stored in memory.
+        Once created, it can be executed via `POST /api/workflows/{id}/execute`.
+        
+        The workflow body is a complete DAG definition including nodes, connections, triggers, and settings.
+      operationId: createWorkflow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Workflow"
+            example:
+              id: "a1b2c3d4-e5f6-4890-abcd-ef1234567890"
+              name: "Sandboxed Python"
+              description: "Run Python in a Firecracker microVM"
+              nodes:
+                - id: "a1b2c3d4-e5f6-4890-abcd-ef1234567001"
+                  node_type: "zypi.exec"
+                  name: "Run Python"
+                  config:
+                    url:
+                      type: String
+                      value: "http://localhost:4000"
+                    image:
+                      type: String
+                      value: "ubuntu:24.04"
+                    command:
+                      type: Array
+                      value:
+                        - type: String
+                          value: "/usr/bin/python3"
+                        - type: String
+                          value: "-c"
+                        - type: String
+                          value: "print(42)"
+                    timeout:
+                      type: Number
+                      value: 30
+                  retry_policy:
+                    max_attempts: 3
+                    delay_ms: 1000
+                    backoff_multiplier: 2.0
+                    max_delay_ms: 60000
+                    retry_on_timeout: true
+              connections: []
+              triggers: []
+              settings:
+                max_parallel_nodes: 10
+                on_error: StopWorkflow
+      responses:
+        "201":
+          description: Workflow created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowResponse"
+        "400":
+          description: Invalid workflow JSON
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/workflows/{id}:
+    get:
+      tags: [workflows]
+      summary: Get workflow by ID
+      description: Returns the full workflow definition including all nodes, connections, triggers, and settings.
+      operationId: getWorkflow
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Workflow UUID
+          schema:
+            type: string
+            format: uuid
+            example: "a1b2c3d4-e5f6-4890-abcd-ef1234567890"
+      responses:
+        "200":
+          description: Full workflow definition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Workflow"
+        "404":
+          description: Workflow not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      tags: [workflows]
+      summary: Delete a workflow
+      description: Removes a workflow from the registry. Does not affect running executions.
+      operationId: deleteWorkflow
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Workflow UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Workflow deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Workflow deleted successfully"
+        "404":
+          description: Workflow not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/workflows/{id}/execute:
+    post:
+      tags: [workflows]
+      summary: Execute a workflow
+      description: |
+        Runs a previously created workflow with optional inputs. Workflow inputs are automatically
+        passed as environment variables to nodes (uppercased). Returns immediately with an execution ID —
+        monitor progress via the WebSocket events endpoint.
+        
+        Execution is asynchronous: the response confirms the workflow started, but nodes run in the
+        background. Subscribe to `WS /api/events` for real-time NodeStarted, NodeCompleted, NodeFailed events.
+      operationId: executeWorkflow
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Workflow UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExecuteRequest"
+            example:
+              inputs: {}
+      responses:
+        "200":
+          description: Workflow executed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExecutionResponse"
+        "404":
+          description: Workflow not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Execution failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Node Types ───────────────────────────────────────────────────────────
+  /api/nodes:
+    get:
+      tags: [nodes]
+      summary: List available node types
+      description: Returns all registered node types with their descriptions, categories, and input/output port schemas. Use these to build workflow definitions.
+      operationId: listNodeTypes
+      responses:
+        "200":
+          description: List of available node types
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NodeTypeInfo"
+
+  # ── WebSocket Events (documented but not in OpenAPI paths) ──────────────
+  # WS /api/events — Real-time execution event stream.
+  # Not representable in OpenAPI 3.x. See ExecutionEvent schema for payload format.
+
+components:
+  schemas:
+    # ── Health ─────────────────────────────────────────────────────────────
+    HealthResponse:
+      type: object
+      required: [status, version, service]
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          example: healthy
+        version:
+          type: string
+          example: "0.1.0"
+        service:
+          type: string
+          example: flowengine
+
+    # ── Workflow ───────────────────────────────────────────────────────────
+    Workflow:
+      type: object
+      required: [id, name, nodes, connections, triggers, settings]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique workflow identifier
+        name:
+          type: string
+          description: Human-readable workflow name
+          example: "Sandboxed Python"
+        description:
+          type: string
+          nullable: true
+          description: Optional workflow description
+        nodes:
+          type: array
+          description: DAG nodes in this workflow
+          items:
+            $ref: "#/components/schemas/NodeSpec"
+        connections:
+          type: array
+          description: Edges connecting nodes (from → to with port mapping)
+          items:
+            $ref: "#/components/schemas/Connection"
+        triggers:
+          type: array
+          description: Workflow triggers (manual, cron, webhook, event)
+          items:
+            $ref: "#/components/schemas/TriggerSpec"
+        settings:
+          $ref: "#/components/schemas/WorkflowSettings"
+
+    NodeSpec:
+      type: object
+      required: [id, node_type, config]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique node instance ID
+        node_type:
+          type: string
+          description: Node type identifier
+          enum:
+            - shell.exec
+            - zypi.exec
+            - zypi.session_create
+            - docker.run
+            - http.request
+            - api.call
+            - browser.render
+            - transform.json_parse
+            - transform.json_stringify
+            - time.delay
+            - debug.log
+        name:
+          type: string
+          nullable: true
+          description: Optional human-readable label
+        config:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/Value"
+          description: Node-type-specific configuration (keyed by param name)
+        position:
+          $ref: "#/components/schemas/Position"
+        retry_policy:
+          $ref: "#/components/schemas/RetryPolicy"
+
+    Value:
+      description: |
+        Tagged union for dynamic values. Format: `{"type": "<type>", "value": <data>}`.
+        Supported types: Null, Bool, Number, String, Bytes (base64), Json, Array, Object.
+      oneOf:
+        - $ref: "#/components/schemas/Value_Null"
+        - $ref: "#/components/schemas/Value_Bool"
+        - $ref: "#/components/schemas/Value_Number"
+        - $ref: "#/components/schemas/Value_String"
+        - $ref: "#/components/schemas/Value_Array"
+        - $ref: "#/components/schemas/Value_Object"
+      discriminator:
+        propertyName: type
+        mapping:
+          Null: "#/components/schemas/Value_Null"
+          Bool: "#/components/schemas/Value_Bool"
+          Number: "#/components/schemas/Value_Number"
+          String: "#/components/schemas/Value_String"
+          Json: "#/components/schemas/Value_Json"
+          Array: "#/components/schemas/Value_Array"
+          Object: "#/components/schemas/Value_Object"
+      example:
+        type: String
+        value: "hello"
+
+    Value_Null:
+      type: object
+      required: [type, value]
+      properties:
+        type:
+          type: string
+          enum: [Null]
+        value:
+          nullable: true
+
+    Value_Bool:
+      type: object
+      required: [type, value]
+      properties:
+        type:
+          type: string
+          enum: [Bool]
+        value:
+          type: boolean
+
+    Value_Number:
+      type: object
+      required: [type, value]
+      properties:
+        type:
+          type: string
+          enum: [Number]
+        value:
+          type: number
+
+    Value_String:
+      type: object
+      required: [type, value]
+      properties:
+        type:
+          type: string
+          enum: [String]
+        value:
+          type: string
+
+    Value_Json:
+      type: object
+      required: [type, value]
+      properties:
+        type:
+          type: string
+          enum: [Json]
+        value:
+          description: Arbitrary JSON value
+
+    Value_Array:
+      type: object
+      required: [type, value]
+      properties:
+        type:
+          type: string
+          enum: [Array]
+        value:
+          type: array
+          items:
+            $ref: "#/components/schemas/Value"
+
+    Value_Object:
+      type: object
+      required: [type, value]
+      properties:
+        type:
+          type: string
+          enum: [Object]
+        value:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/Value"
+
+    Connection:
+      type: object
+      required: [from_node, from_port, to_node, to_port]
+      properties:
+        from_node:
+          type: string
+          format: uuid
+          description: Source node ID
+        from_port:
+          type: string
+          description: Output port on source node (e.g., "output", "stdout")
+          example: output
+        to_node:
+          type: string
+          format: uuid
+          description: Target node ID
+        to_port:
+          type: string
+          description: Input port on target node
+          example: stdin
+
+    TriggerSpec:
+      type: object
+      required: [id, trigger_type, enabled]
+      properties:
+        id:
+          type: string
+          format: uuid
+        trigger_type:
+          oneOf:
+            - $ref: "#/components/schemas/Trigger_Manual"
+            - $ref: "#/components/schemas/Trigger_Cron"
+            - $ref: "#/components/schemas/Trigger_Webhook"
+            - $ref: "#/components/schemas/Trigger_Event"
+          discriminator:
+            propertyName: type
+        enabled:
+          type: boolean
+
+    Trigger_Manual:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [Manual]
+
+    Trigger_Cron:
+      type: object
+      required: [type, expression]
+      properties:
+        type:
+          type: string
+          enum: [Cron]
+        expression:
+          type: string
+          example: "*/5 * * * *"
+
+    Trigger_Webhook:
+      type: object
+      required: [type, path]
+      properties:
+        type:
+          type: string
+          enum: [Webhook]
+        path:
+          type: string
+          example: "/hooks/github-push"
+
+    Trigger_Event:
+      type: object
+      required: [type, event_type]
+      properties:
+        type:
+          type: string
+          enum: [Event]
+        event_type:
+          type: string
+          example: "file.created"
+
+    Position:
+      type: object
+      properties:
+        x:
+          type: number
+          format: float
+        y:
+          type: number
+          format: float
+
+    RetryPolicy:
+      type: object
+      properties:
+        max_attempts:
+          type: integer
+          minimum: 1
+          default: 3
+        delay_ms:
+          type: integer
+          description: Initial delay in milliseconds
+          default: 1000
+        backoff_multiplier:
+          type: number
+          description: Multiplier for each retry attempt
+          default: 2.0
+        max_delay_ms:
+          type: integer
+          nullable: true
+          description: Maximum delay cap in milliseconds
+          default: 60000
+        retry_on_timeout:
+          type: boolean
+          description: Whether to retry on timeout errors
+          default: true
+
+    WorkflowSettings:
+      type: object
+      properties:
+        max_execution_time_ms:
+          type: integer
+          nullable: true
+          description: Maximum total execution time (null = no limit)
+        max_parallel_nodes:
+          type: integer
+          minimum: 1
+          default: 10
+          description: Maximum number of nodes executed in parallel
+        on_error:
+          type: string
+          enum: [StopWorkflow, ContinueOnError, RetryWorkflow]
+          default: StopWorkflow
+          description: Error handling strategy
+
+    # ── Request/Response ───────────────────────────────────────────────────
+    WorkflowSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        nodes:
+          type: integer
+          description: Number of nodes in the workflow
+        connections:
+          type: integer
+          description: Number of connections in the workflow
+
+    WorkflowResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: UUID of the created workflow
+        message:
+          type: string
+          example: "Workflow created successfully"
+
+    ExecuteRequest:
+      type: object
+      properties:
+        inputs:
+          type: object
+          additionalProperties: {}
+          description: |
+            Input values keyed by port name. These are automatically passed as
+            uppercase environment variables to all nodes.
+          example:
+            url: "https://api.github.com/zen"
+            value: 42
+
+    ExecutionResponse:
+      type: object
+      properties:
+        execution_id:
+          type: string
+          format: uuid
+          description: UUID of this execution run
+        completed_nodes:
+          type: integer
+          description: Number of nodes that completed successfully
+        total_nodes:
+          type: integer
+          description: Total nodes in the workflow
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Human-readable error description
+          example: "Workflow not found"
+
+    # ── Node Types ─────────────────────────────────────────────────────────
+    NodeTypeInfo:
+      type: object
+      properties:
+        type:
+          type: string
+          description: Node type identifier
+          example: zypi.exec
+        description:
+          type: string
+          description: Human-readable description
+          example: "Execute command in Zypi Firecracker microVM (sub-second boot)"
+        category:
+          type: string
+          description: Grouping category
+          example: zypi
+
+    # ── Execution Events (WebSocket) ───────────────────────────────────────
+    ExecutionEvent:
+      description: |
+        Real-time events streamed over WebSocket at `/api/events`.
+        Clients subscribe to receive live updates during workflow execution.
+        
+        **Not part of the REST API** — use WebSocket client to receive these.
+      oneOf:
+        - $ref: "#/components/schemas/WorkflowStartedEvent"
+        - $ref: "#/components/schemas/WorkflowCompletedEvent"
+        - $ref: "#/components/schemas/NodeStartedEvent"
+        - $ref: "#/components/schemas/NodeCompletedEvent"
+        - $ref: "#/components/schemas/NodeFailedEvent"
+        - $ref: "#/components/schemas/NodeEvent"
+
+    WorkflowStartedEvent:
+      type: object
+      required: [type, execution_id, workflow_id, timestamp]
+      properties:
+        type:
+          type: string
+          enum: [WorkflowStarted]
+        execution_id:
+          type: string
+          format: uuid
+        workflow_id:
+          type: string
+          format: uuid
+        timestamp:
+          type: string
+          format: date-time
+
+    WorkflowCompletedEvent:
+      type: object
+      required: [type, execution_id, success, duration_ms, timestamp]
+      properties:
+        type:
+          type: string
+          enum: [WorkflowCompleted]
+        execution_id:
+          type: string
+          format: uuid
+        success:
+          type: boolean
+        duration_ms:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+
+    NodeStartedEvent:
+      type: object
+      required: [type, execution_id, node_id, node_type, timestamp]
+      properties:
+        type:
+          type: string
+          enum: [NodeStarted]
+        execution_id:
+          type: string
+          format: uuid
+        node_id:
+          type: string
+          format: uuid
+        node_type:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    NodeCompletedEvent:
+      type: object
+      required: [type, execution_id, node_id, outputs, duration_ms, timestamp]
+      properties:
+        type:
+          type: string
+          enum: [NodeCompleted]
+        execution_id:
+          type: string
+          format: uuid
+        node_id:
+          type: string
+          format: uuid
+        outputs:
+          type: object
+          additionalProperties: {}
+        duration_ms:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+
+    NodeFailedEvent:
+      type: object
+      required: [type, execution_id, node_id, error, timestamp]
+      properties:
+        type:
+          type: string
+          enum: [NodeFailed]
+        execution_id:
+          type: string
+          format: uuid
+        node_id:
+          type: string
+          format: uuid
+        error:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    NodeEvent:
+      type: object
+      required: [type, execution_id, node_id, event, timestamp]
+      properties:
+        type:
+          type: string
+          enum: [NodeEvent]
+        execution_id:
+          type: string
+          format: uuid
+        node_id:
+          type: string
+          format: uuid
+        event:
+          oneOf:
+            - $ref: "#/components/schemas/InfoEvent"
+            - $ref: "#/components/schemas/StdoutLineEvent"
+            - $ref: "#/components/schemas/StderrLineEvent"
+            - $ref: "#/components/schemas/ProgressEvent"
+        timestamp:
+          type: string
+          format: date-time
+
+    InfoEvent:
+      type: object
+      required: [event_type, message]
+      properties:
+        event_type:
+          type: string
+          enum: [Info]
+        message:
+          type: string
+
+    StdoutLineEvent:
+      type: object
+      required: [event_type, line]
+      properties:
+        event_type:
+          type: string
+          enum: [StdoutLine]
+        line:
+          type: string
+
+    StderrLineEvent:
+      type: object
+      required: [event_type, line]
+      properties:
+        event_type:
+          type: string
+          enum: [StderrLine]
+        line:
+          type: string
+
+    ProgressEvent:
+      type: object
+      required: [event_type, percent]
+      properties:
+        event_type:
+          type: string
+          enum: [Progress]
+        percent:
+          type: number
+        message:
+          type: string

@@ -1,0 +1,110 @@
+openapi: "3.0.3"
+info:
+  title: Google Calendar Connector
+  version: "1.0.0"
+
+servers:
+  - url: https://www.googleapis.com/calendar/v3
+
+security:
+  - OAuth2:
+    - https://www.googleapis.com/auth/calendar.readonly
+    - https://www.googleapis.com/auth/calendar.events
+
+paths:
+  /calendars/primary/events:
+    get:
+      operationId: listEvents
+      summary: List upcoming events
+      parameters:
+        - name: timeMin
+          in: query
+          schema: { type: string, format: date-time }
+        - name: timeMax
+          in: query
+          schema: { type: string, format: date-time }
+        - name: q
+          in: query
+          description: Free text search
+          schema: { type: string }
+        - name: maxResults
+          in: query
+          schema: { type: integer, default: 25 }
+      responses:
+        "200":
+          description: Event list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        summary: { type: string }
+                        start: { type: object }
+                        end: { type: object }
+
+    post:
+      operationId: createEvent
+      summary: Create a calendar event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                summary: { type: string }
+                start:
+                  type: object
+                  properties:
+                    dateTime: { type: string }
+                    timeZone: { type: string }
+                end:
+                  type: object
+                  properties:
+                    dateTime: { type: string }
+                    timeZone: { type: string }
+                attendees:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      email: { type: string }
+      responses:
+        "200":
+          description: Created event
+
+  /calendars/primary/events/{eventId}:
+    patch:
+      operationId: updateEvent
+      summary: Update an event
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200":
+          description: Updated event
+
+    delete:
+      operationId: deleteEvent
+      summary: Delete an event
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Event deleted

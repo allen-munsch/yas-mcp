@@ -1,0 +1,29 @@
+# Kustomize base for yas-mcp on Minikube
+#
+# Usage:
+#   kubectl apply -k deploy/minikube/base
+#   kubectl port-forward -n yas-mcp svc/yas-mcp 3000:3000
+#
+# Customize per-API:
+#   cp -r deploy/minikube/base deploy/minikube/overlays/my-api
+#   # edit configmap, then:
+#   kubectl apply -k deploy/minikube/overlays/my-api
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: yas-mcp
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - deployment.yaml
+  - service.yaml
+
+commonLabels:
+  app.kubernetes.io/name: yas-mcp
+  app.kubernetes.io/part-of: yas-mcp
+
+images:
+  - name: yas-mcp
+    newTag: latest

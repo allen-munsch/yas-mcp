@@ -1,0 +1,7 @@
+# Default owners for everything in the repo
+* @your-username
+
+# Specific file ownership
+/.github/ @your-username
+/src/ @your-username
+/tests/ @your-username

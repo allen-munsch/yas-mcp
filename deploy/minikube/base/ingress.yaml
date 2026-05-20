@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: yas-mcp
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  labels:
+    app: yas-mcp
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: mcp.example.com  # Override in overlay
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: yas-mcp
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - mcp.example.com  # Override in overlay
+      secretName: yas-mcp-tls

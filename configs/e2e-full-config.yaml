@@ -1,0 +1,44 @@
+# Full-stack E2E configuration — OIDC (Dex) + A2A + secrets + MCP
+server:
+  mode: http
+  host: 0.0.0.0
+  port: 3000
+  name: "yas-mcp-e2e-full"
+  version: "0.1.0"
+
+logging:
+  level: debug
+  format: compact
+
+endpoint:
+  base_url: "http://prism:4010"
+
+oauth:
+  enabled: true
+  provider: generic
+  client_id: "yas-mcp-e2e"
+  client_secret: "env://E2E_OIDC_CLIENT_SECRET"
+  auth_url: "http://dex:5556/dex/auth"
+  token_url: "http://dex:5556/dex/token"
+  user_info_url: "http://dex:5556/dex/userinfo"
+  scopes: ["openid", "profile", "email", "offline_access"]
+  redirect_uri: "http://yas-mcp:3000/oauth/callback"
+
+a2a:
+  enabled: true
+  agent_card_name: "E2E Full-Stack Agent"
+  agent_card_description: "End-to-end tested agent with OIDC auth via Dex"
+  streaming_enabled: true
+  task_ttl: 300
+
+auth:
+  middleware_chain:
+    - type: bearer_token
+      route_filter: "/**"
+      config:
+        token: "env://E2E_OIDC_ACCESS_TOKEN"
+
+secrets:
+  backends: []
+
+swagger_file: "/app/config/swagger.yaml"

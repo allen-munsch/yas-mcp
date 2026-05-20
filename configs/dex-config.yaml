@@ -1,0 +1,34 @@
+# Dex OIDC Provider configuration for e2e testing
+# Dex is a lightweight OIDC provider from the CNCF ecosystem
+issuer: http://dex:5556/dex
+
+storage:
+  type: memory
+
+web:
+  http: 0.0.0.0:5556
+
+telemetry:
+  http: 0.0.0.0:5558
+
+oauth2:
+  skipApprovalScreen: true
+  responseTypes: ["code", "token", "id_token"]
+
+staticClients:
+  - id: yas-mcp-e2e
+    secret: e2e-client-secret
+    name: "yas-mcp E2E Test Client"
+    redirectURIs:
+      - "http://yas-mcp:3000/oauth/callback"
+
+connectors:
+  - type: mockCallback
+    id: mock
+    name: Mock
+
+staticPasswords:
+  - email: "test@example.com"
+    hash: "$2a$10$2b2cU8CPhOTmKND3GSFqOeIZaE4Cb3DG0MGhjFG6WLkLI/OqZq/Eu"  # bcrypt of "password"
+    username: "testuser"
+    userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"

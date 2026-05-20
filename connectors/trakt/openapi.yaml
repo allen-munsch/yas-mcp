@@ -1,0 +1,225 @@
+openapi: "3.0.3"
+info:
+  title: Trakt.tv Connector
+  version: "1.0.0"
+
+servers:
+  - url: https://api.trakt.tv
+    description: Trakt.tv API v2
+
+security:
+  - OAuth2:
+    - public
+
+paths:
+  /shows/trending:
+    get:
+      operationId: trendingShows
+      summary: Get trending TV shows
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 10 }
+      responses:
+        "200":
+          description: List of trending shows with watcher counts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    watchers: { type: integer }
+                    show:
+                      type: object
+                      properties:
+                        title: { type: string }
+                        year: { type: integer }
+                        ids:
+                          type: object
+                          properties:
+                            trakt: { type: integer }
+                            imdb: { type: string }
+                            tmdb: { type: integer }
+                            tvdb: { type: integer }
+
+  /movies/trending:
+    get:
+      operationId: trendingMovies
+      summary: Get trending movies
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 10 }
+      responses:
+        "200":
+          description: List of trending movies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    watchers: { type: integer }
+                    movie:
+                      type: object
+                      properties:
+                        title: { type: string }
+                        year: { type: integer }
+                        ids:
+                          type: object
+                          properties:
+                            trakt: { type: integer }
+                            imdb: { type: string }
+                            tmdb: { type: integer }
+
+  /search/{type}:
+    get:
+      operationId: search
+      summary: Search for movies, shows, episodes, or people
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [movie, show, episode, person, list]
+          description: Type of item to search
+        - name: query
+          in: query
+          required: true
+          schema: { type: string }
+          description: Search term
+        - name: year
+          in: query
+          schema: { type: integer }
+        - name: page
+          in: query
+          schema: { type: integer }
+        - name: limit
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Search results
+
+  /sync/watched/shows:
+    get:
+      operationId: watchedShows
+      summary: Get all shows the user has watched (requires auth)
+      parameters:
+        - name: extended
+          in: query
+          schema: { type: string, default: "full" }
+      responses:
+        "200":
+          description: List of watched shows with play counts and last watched
+
+  /sync/watched/movies:
+    get:
+      operationId: watchedMovies
+      summary: Get all movies the user has watched (requires auth)
+      parameters:
+        - name: extended
+          in: query
+          schema: { type: string, default: "full" }
+      responses:
+        "200":
+          description: List of watched movies
+
+  /sync/history:
+    get:
+      operationId: watchHistory
+      summary: Get recent watch history (requires auth)
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [episodes, movies]
+        - name: page
+          in: query
+          schema: { type: integer }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        "200":
+          description: Watch history entries
+
+  /sync/watchlist:
+    get:
+      operationId: watchlist
+      summary: Get user's watchlist (requires auth)
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [shows, movies, seasons, episodes]
+          description: Filter by media type
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [rank, added, released, title]
+      responses:
+        "200":
+          description: Watchlist items
+
+  /sync/playback:
+    get:
+      operationId: playbackStatus
+      summary: Get what the user is currently watching (requires auth)
+      responses:
+        "200":
+          description: Currently playing item (movie or episode)
+
+  /shows/{id}/progress/watched:
+    get:
+      operationId: showProgress
+      summary: Get watched progress for a show (requires auth)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: Trakt show ID or slug (e.g., 'breaking-bad')
+      responses:
+        "200":
+          description: Per-season/episode watched progress
+
+  /calendars/my/shows:
+    get:
+      operationId: showCalendar
+      summary: Get upcoming show premieres and air dates
+      parameters:
+        - name: start_date
+          in: query
+          schema: { type: string, format: date }
+          description: Start date (YYYY-MM-DD), defaults to today
+        - name: days
+          in: query
+          schema: { type: integer, default: 7 }
+      responses:
+        "200":
+          description: Calendar of upcoming show airings
+
+components:
+  securitySchemes:
+    OAuth2:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: https://trakt.tv/oauth/authorize
+          tokenUrl: https://api.trakt.tv/oauth/token
+          scopes:
+            public: Access public data

@@ -1,0 +1,127 @@
+openapi: "3.0.3"
+info:
+  title: Home Assistant Connector
+  version: "1.0.0"
+
+servers:
+  - url: http://homeassistant.local:8123/api
+    description: Home Assistant REST API (requires long-lived access token)
+
+security:
+  - bearerAuth: []
+
+paths:
+  /states:
+    get:
+      operationId: getStates
+      summary: Get all entity states (lights, switches, sensors, etc.)
+      responses:
+        "200":
+          description: Array of entity state objects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    entity_id: { type: string }
+                    state: { type: string }
+                    attributes: { type: object }
+
+  /states/{entityId}:
+    get:
+      operationId: getEntityState
+      summary: Get state of a specific entity
+      parameters:
+        - name: entityId
+          in: path
+          required: true
+          schema: { type: string }
+          description: Entity ID (e.g., light.living_room)
+      responses:
+        "200":
+          description: Entity state
+
+    post:
+      operationId: updateEntity
+      summary: Update entity state (call a service)
+      parameters:
+        - name: entityId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                state: { type: string }
+                attributes: { type: object }
+                domain: { type: string, description: "Service domain (light, switch, climate, etc.)" }
+                service: { type: string, description: "Service to call (turn_on, turn_off, etc.)" }
+      responses:
+        "200":
+          description: Service called successfully
+
+  /services:
+    get:
+      operationId: listServices
+      summary: List all available services
+      responses:
+        "200":
+          description: Array of service definitions
+
+  /services/{domain}/{service}:
+    post:
+      operationId: callService
+      summary: Call a Home Assistant service (turn on lights, lock doors, etc.)
+      parameters:
+        - name: domain
+          in: path
+          required: true
+          schema: { type: string }
+          description: Service domain (light, switch, lock, climate, media_player, etc.)
+        - name: service
+          in: path
+          required: true
+          schema: { type: string }
+          description: Service name (turn_on, turn_off, toggle, etc.)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                entity_id: { type: string }
+                brightness: { type: integer }
+                rgb_color: { type: array, items: { type: integer } }
+                temperature: { type: number }
+      responses:
+        "200":
+          description: Service called
+
+  /config:
+    get:
+      operationId: getConfig
+      summary: Get Home Assistant configuration
+      responses:
+        "200":
+          description: Config object (location, version, unit system)
+
+  /events:
+    get:
+      operationId: getEvents
+      summary: Get recent events (last 50)
+      responses:
+        "200":
+          description: Array of recent events
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Long-lived access token from Home Assistant profile page

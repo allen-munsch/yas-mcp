@@ -1,0 +1,118 @@
+openapi: "3.0.3"
+info:
+  title: GitHub Connector
+  version: "1.0.0"
+
+servers:
+  - url: https://api.github.com
+
+security:
+  - tokenAuth: []
+
+paths:
+  /search/issues:
+    get:
+      operationId: searchIssues
+      summary: Search issues and PRs across GitHub
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [created, updated, comments] }
+        - name: order
+          in: query
+          schema: { type: string, enum: [asc, desc] }
+        - name: per_page
+          in: query
+          schema: { type: integer, default: 30 }
+      responses:
+        "200":
+          description: Search results
+
+  /repos/{owner}/{repo}/issues:
+    get:
+      operationId: listIssues
+      summary: List issues for a repository
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema: { type: string }
+        - name: repo
+          in: path
+          required: true
+          schema: { type: string }
+        - name: state
+          in: query
+          schema: { type: string, enum: [open, closed, all], default: open }
+        - name: labels
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Issue list
+
+    post:
+      operationId: createIssue
+      summary: Create a new issue
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema: { type: string }
+        - name: repo
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+                body: { type: string }
+                labels: { type: array, items: { type: string } }
+              required: [title]
+      responses:
+        "200":
+          description: Created issue
+
+  /repos/{owner}/{repo}/pulls:
+    get:
+      operationId: listPullRequests
+      summary: List open pull requests
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema: { type: string }
+        - name: repo
+          in: path
+          required: true
+          schema: { type: string }
+        - name: state
+          in: query
+          schema: { type: string, enum: [open, closed, all], default: open }
+      responses:
+        "200":
+          description: PR list
+
+  /notifications:
+    get:
+      operationId: listNotifications
+      summary: List unread notifications
+      parameters:
+        - name: all
+          in: query
+          schema: { type: boolean, default: false }
+        - name: per_page
+          in: query
+          schema: { type: integer, default: 25 }
+      responses:
+        "200":
+          description: Notification list

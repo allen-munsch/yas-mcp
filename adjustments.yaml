@@ -1,0 +1,24 @@
+# Route descriptions overrides for Petstore API
+descriptions:
+  - path: "/pets"
+    updates:
+      - method: "GET"
+        new_description: "Get all pets with optional pagination"
+      - method: "POST" 
+        new_description: "Create a new pet in the store"
+
+  - path: "/pets/{petId}"
+    updates:
+      - method: "GET"
+        new_description: "Get detailed information about a specific pet"
+      - method: "PUT"
+        new_description: "Update an existing pet's information"
+      - method: "DELETE"
+        new_description: "Remove a pet from the store"
+
+# Route selections (only these routes will be exposed as MCP tools)
+routes:
+  - path: "/pets"
+    methods: ["GET", "POST"]
+  - path: "/pets/{petId}"
+    methods: ["GET", "PUT", "DELETE"]

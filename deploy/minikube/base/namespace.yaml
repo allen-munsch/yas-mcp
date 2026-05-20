@@ -1,0 +1,6 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: yas-mcp
+  labels:
+    app.kubernetes.io/name: yas-mcp

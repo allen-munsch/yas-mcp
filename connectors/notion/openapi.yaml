@@ -1,0 +1,192 @@
+openapi: "3.0.3"
+info:
+  title: Notion API Connector
+  version: "1.0.0"
+
+servers:
+  - url: https://api.notion.com/v1
+    description: Notion API v1
+
+security:
+  - bearerAuth: []
+
+paths:
+  /search:
+    post:
+      operationId: search
+      summary: Search all pages, databases, and child blocks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query: { type: string, description: "Search query text" }
+                filter:
+                  type: object
+                  properties:
+                    value: { type: string, enum: [page, database] }
+                    property: { type: string, const: object }
+                sort:
+                  type: object
+                  properties:
+                    direction: { type: string, enum: [ascending, descending] }
+                    timestamp: { type: string, const: last_edited_time }
+                page_size: { type: integer, default: 10 }
+      responses:
+        "200":
+          description: Search results
+
+  /pages/{id}:
+    get:
+      operationId: getPage
+      summary: Get a page by ID with its content
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: Notion page ID (UUID)
+      responses:
+        "200":
+          description: Page object
+
+    patch:
+      operationId: updatePage
+      summary: Update page properties
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                properties: { type: object }
+                archived: { type: boolean }
+      responses:
+        "200":
+          description: Updated page
+
+  /blocks/{id}/children:
+    get:
+      operationId: getBlockChildren
+      summary: Get child blocks of a page or block
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: page_size
+          in: query
+          schema: { type: integer, default: 50 }
+      responses:
+        "200":
+          description: List of child blocks
+
+    patch:
+      operationId: appendBlocks
+      summary: Add child blocks to a page
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                children:
+                  type: array
+                  items: { type: object }
+      responses:
+        "200":
+          description: Blocks appended
+
+  /databases/{id}:
+    get:
+      operationId: getDatabase
+      summary: Get a database by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Database object
+
+  /databases/{id}/query:
+    post:
+      operationId: queryDatabase
+      summary: Query a database (filter, sort, paginate)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                filter: { type: object }
+                sorts:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      property: { type: string }
+                      direction: { type: string, enum: [ascending, descending] }
+                page_size: { type: integer }
+      responses:
+        "200":
+          description: Query results (paginated)
+
+  /pages:
+    post:
+      operationId: createPage
+      summary: Create a new page in a database
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                parent:
+                  type: object
+                  properties:
+                    database_id: { type: string }
+                    type: { type: string, const: database_id }
+                properties: { type: object }
+                children:
+                  type: array
+                  items: { type: object }
+      responses:
+        "200":
+          description: Created page
+
+  /users/me:
+    get:
+      operationId: getCurrentUser
+      summary: Get the authenticated user
+      responses:
+        "200":
+          description: Bot user object
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Notion internal integration token (starts with 'ntn_')

@@ -1,0 +1,29 @@
+# macOS Seatbelt Sandbox
+#
+# Runs yas-mcp in a macOS sandbox with minimal permissions.
+# Uses the built-in sandbox-exec.
+#
+# Usage:
+#   sandbox-exec -f sandboxes/seatbelt/yas-mcp.sb yas-mcp --swagger-file api.yaml --mode http
+
+(version 1)
+(allow default)
+
+;; File access — only what's needed
+(allow file-read* (subpath "/usr/lib"))
+(allow file-read* (subpath "/etc/ssl"))
+(allow file-read* (subpath "/tmp"))
+(allow file-read-data (literal "/path/to/your/openapi.yaml"))
+(allow file-read-data (literal "/path/to/your/config.yaml"))
+
+;; Network — outbound to APIs, inbound for MCP server
+(allow network-outbound)
+(allow network-inbound (local ip "localhost:3000"))
+
+;; Process basics
+(allow process-fork)
+(allow sysctl-read)
+(allow signal (target self))
+
+;; Deny everything else
+(deny default)
