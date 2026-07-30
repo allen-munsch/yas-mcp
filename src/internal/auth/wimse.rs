@@ -57,6 +57,7 @@ pub enum Audience {
 
 impl Audience {
     /// Parse an audience from its string representation (JWT `aud` claim).
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Self {
         match s {
             "weft:token-exchange" => Audience::TokenExchange,
@@ -156,7 +157,6 @@ pub enum AutonomyLevel {
     Delegated,
     Autonomous,
 }
-
 
 /// One hop in a delegation chain.
 #[derive(Debug, Clone, Serialize, Deserialize)]

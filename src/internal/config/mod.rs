@@ -374,15 +374,16 @@ impl AppConfig {
 
         // Process scopes if they're provided as space-separated string
         if let Some(oauth) = &mut app_config.oauth
-            && oauth.scopes.len() == 1 {
-                let single_scope = &oauth.scopes[0];
-                if single_scope.contains(' ') {
-                    oauth.scopes = single_scope
-                        .split_whitespace()
-                        .map(|s| s.to_string())
-                        .collect();
-                }
+            && oauth.scopes.len() == 1
+        {
+            let single_scope = &oauth.scopes[0];
+            if single_scope.contains(' ') {
+                oauth.scopes = single_scope
+                    .split_whitespace()
+                    .map(|s| s.to_string())
+                    .collect();
             }
+        }
 
         Ok(app_config)
     }
