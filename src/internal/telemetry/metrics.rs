@@ -164,7 +164,9 @@ impl Metrics {
 
     /// Record a tool call with its duration
     pub fn record_tool_call(&self, tool: &str, method: &str, duration_secs: f64) {
-        self.tool_calls.with_label_values::<&str>(&[tool, method]).inc();
+        self.tool_calls
+            .with_label_values::<&str>(&[tool, method])
+            .inc();
         self.tool_duration
             .with_label_values::<&str>(&[tool, method])
             .observe(duration_secs);
