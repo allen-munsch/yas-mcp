@@ -68,7 +68,7 @@ prost-types = "0.13"
 chrono = { version = "0.4", features = ["serde"] }
 dashmap = "6"
 glob-match = "0.2"
-prometheus = { version = "0.13", features = ["process"] }
+prometheus = { version = "0.14", features = ["process"] }
 jsonwebtoken = "9"
 
 [dev-dependencies]

@@ -127,7 +127,7 @@ impl Metrics {
             .unwrap();
 
             // Set build info
-            build_info.with_label_values(&[version]).set(1.0);
+            build_info.with_label_values::<&str>(&[version]).set(1.0);
 
             info!("Prometheus metrics initialized (v{})", version);
 
@@ -164,16 +164,16 @@ impl Metrics {
 
     /// Record a tool call with its duration
     pub fn record_tool_call(&self, tool: &str, method: &str, duration_secs: f64) {
-        self.tool_calls.with_label_values(&[tool, method]).inc();
+        self.tool_calls.with_label_values::<&str>(&[tool, method]).inc();
         self.tool_duration
-            .with_label_values(&[tool, method])
+            .with_label_values::<&str>(&[tool, method])
             .observe(duration_secs);
     }
 
     /// Record a tool execution error
     pub fn record_tool_error(&self, tool: &str, method: &str, status_code: u16) {
         self.tool_errors
-            .with_label_values(&[tool, method, &status_code.to_string()])
+            .with_label_values::<&str>(&[tool, method, &status_code.to_string()])
             .inc();
     }
 
@@ -186,21 +186,21 @@ impl Metrics {
         duration_secs: f64,
     ) {
         self.upstream_requests
-            .with_label_values(&[host, method, &status_code.to_string()])
+            .with_label_values::<&str>(&[host, method, &status_code.to_string()])
             .inc();
         self.upstream_duration
-            .with_label_values(&[host, method])
+            .with_label_values::<&str>(&[host, method])
             .observe(duration_secs);
     }
 
     /// Set the active tools gauge
     pub fn set_active_tools(&self, count: f64) {
-        self.active_tools.with_label_values(&[]).set(count);
+        self.active_tools.with_label_values::<&str>(&[]).set(count);
     }
 
     /// Record an A2A task state transition
     pub fn record_a2a_task(&self, state: &str) {
-        self.a2a_tasks.with_label_values(&[state]).inc();
+        self.a2a_tasks.with_label_values::<&str>(&[state]).inc();
     }
 }
 
