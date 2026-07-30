@@ -18,7 +18,7 @@ use regex::Regex;
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::io::Read;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 pub struct SwaggerParser {
     doc: Option<OpenAPI>,
@@ -377,16 +377,11 @@ impl SwaggerParser {
 
         let final_input = input_val.as_object().unwrap().clone();
 
-        rmcp::model::Tool {
-            name: tool_name.into(),
-            title: None,
-            description: Some(description.into()),
-            input_schema: final_input.into(),
-            output_schema: None,
-            annotations: None,
-            icons: None,
-            meta: None,
-        }
+        rmcp::model::Tool::new(
+            tool_name,
+            description,
+            Arc::new(final_input),
+        )
     }
 }
 

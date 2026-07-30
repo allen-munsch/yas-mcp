@@ -5,7 +5,7 @@
 //!
 //! # Architecture
 //!
-//! ```
+//! ```text
 //! Client                    yas-mcp                   Tool Executor
 //!   │                          │                          │
 //!   │ POST /a2a/tasks/         │                          │

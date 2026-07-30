@@ -203,12 +203,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_env_resolver() {
-        std::env::set_var("TEST_SECRET_ENV_VAR", "secret-value-123");
+        unsafe { std::env::set_var("TEST_SECRET_ENV_VAR", "secret-value-123"); }
         let resolver = EnvResolver;
         let secret_ref = SecretRef::parse("env://TEST_SECRET_ENV_VAR").unwrap();
         let value = resolver.resolve(&secret_ref).await.unwrap();
         assert_eq!(value, "secret-value-123");
-        std::env::remove_var("TEST_SECRET_ENV_VAR");
+        unsafe { std::env::remove_var("TEST_SECRET_ENV_VAR"); }
     }
 
     #[tokio::test]

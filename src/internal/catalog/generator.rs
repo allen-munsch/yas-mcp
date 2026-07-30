@@ -198,25 +198,15 @@ mod tests {
 
     fn make_test_registry() -> (Arc<ToolRegistry>, Vec<RouteConfig>) {
         let registry = Arc::new(ToolRegistry::new());
-        let tool = rmcp::model::Tool {
-            name: "get_users".into(),
-            title: None,
-            description: Some("Get users".into()),
-            input_schema: Arc::new(serde_json::Map::new()),
-            output_schema: None,
-            annotations: None,
-            icons: None,
-            meta: None,
-        };
+        let tool = rmcp::model::Tool::new(
+            "get_users",
+            "Get users",
+            Arc::new(serde_json::Map::new()),
+        );
         let executor: crate::internal::server::tool::handler::ToolExecutor =
             Arc::new(|_| {
                 Box::pin(async {
-                    Ok(rmcp::model::CallToolResult {
-                        content: vec![],
-                        is_error: Some(false),
-                        meta: None,
-                        structured_content: None,
-                    })
+                    Ok(rmcp::model::CallToolResult::success(vec![]))
                 })
             });
         registry.register(

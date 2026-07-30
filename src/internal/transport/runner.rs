@@ -102,18 +102,11 @@ mod tests {
 
     fn make_processor() -> (McpProcessor, Arc<ToolRegistry>) {
         let registry = Arc::new(ToolRegistry::new());
-        let server_info = rmcp::model::ServerInfo::from(rmcp::model::InitializeResult {
-            protocol_version: rmcp::model::ProtocolVersion::V_2024_11_05,
-            capabilities: rmcp::model::ServerCapabilities::builder().enable_tools().build(),
-            server_info: rmcp::model::Implementation {
-                name: "test".into(),
-                version: "1.0".into(),
-                icons: None,
-                title: None,
-                website_url: None,
-            },
-            instructions: Some("Test server".into()),
-        });
+        let mut server_info = rmcp::model::ServerInfo::new(
+            rmcp::model::ServerCapabilities::builder().enable_tools().build(),
+        );
+        server_info = server_info.with_server_info(rmcp::model::Implementation::new("test", "1.0"));
+        server_info.instructions = Some("Test server".into());
         let processor = McpProcessor {
             server_info,
             tool_registry: registry.clone(),

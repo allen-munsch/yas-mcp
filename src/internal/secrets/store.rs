@@ -158,13 +158,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_resolve_env_value() {
-        std::env::set_var("TEST_STORE_VAR", "from-env-456");
+        unsafe { std::env::set_var("TEST_STORE_VAR", "from-env-456"); }
         let store = SecretStore::default();
 
         let value = store.resolve_value("env://TEST_STORE_VAR").await.unwrap();
         assert_eq!(value, "from-env-456");
 
-        std::env::remove_var("TEST_STORE_VAR");
+        unsafe { std::env::remove_var("TEST_STORE_VAR"); }
     }
 
     #[tokio::test]
@@ -183,7 +183,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_resolve_map() {
-        std::env::set_var("TEST_MAP_PASS", "s3cr3t");
+        unsafe { std::env::set_var("TEST_MAP_PASS", "s3cr3t"); }
         let store = SecretStore::default();
 
         let mut map = HashMap::new();
@@ -194,7 +194,7 @@ mod tests {
         assert_eq!(resolved["username"], "admin");
         assert_eq!(resolved["password"], "s3cr3t");
 
-        std::env::remove_var("TEST_MAP_PASS");
+        unsafe { std::env::remove_var("TEST_MAP_PASS"); }
     }
 
     #[test]

@@ -309,19 +309,17 @@ async fn execute_tool(
         .get(skill_name)
         .ok_or_else(|| format!("Skill '{}' not found in tool registry", skill_name))?;
 
-    // Build an MCP CallToolRequest
-    let call_request = rmcp::model::CallToolRequest {
-        method: rmcp::model::CallToolRequestMethod,
-        params: rmcp::model::CallToolRequestParam {
-            name: skill_name.to_string().into(),
-            arguments: params.as_object().map(|o| {
-                o.iter()
-                    .map(|(k, v)| (k.clone(), v.clone()))
-                    .collect()
-            }),
-        },
-        extensions: Default::default(),
-    };
+    // Build an MCP CallToolRequestParams
+    let mut call_request = rmcp::model::CallToolRequestParams::new(
+        skill_name.to_string(),
+    );
+    if let Some(args) = params.as_object().map(|o| {
+        o.iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect()
+    }) {
+        call_request = call_request.with_arguments(args);
+    }
 
     // Execute via the tool's executor (same code path as MCP tools/call)
     match (tool.executor)(call_request).await {
@@ -334,8 +332,8 @@ async fn execute_tool(
                 parts: result
                     .content
                     .iter()
-                    .map(|c| match &c.raw {
-                        rmcp::model::RawContent::Text(t) => Part::Text {
+                    .map(|c| match c {
+                        rmcp::model::ContentBlock::Text(t) => Part::Text {
                             text: t.text.clone(),
                         },
                         _ => Part::Text {

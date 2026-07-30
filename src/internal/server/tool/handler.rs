@@ -2,7 +2,7 @@
 
 use crate::internal::mcp::registry::{RegisteredTool, ToolRegistry};
 use anyhow::{anyhow, Result};
-use rmcp::model::{Annotated, CallToolRequest, CallToolResult, RawContent, RawTextContent, Tool};
+use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock, TextContent, Tool};
 use serde_json::Map;
 use std::sync::Arc;
 use tracing::debug;
@@ -12,7 +12,7 @@ use crate::internal::requester::RouteExecutor;
 // Simplify the ToolExecutor to avoid lifetime issues
 pub type ToolExecutor = Arc<
     dyn Fn(
-            CallToolRequest,
+            CallToolRequestParams,
         ) -> std::pin::Pin<
             Box<dyn std::future::Future<Output = Result<CallToolResult, anyhow::Error>> + Send>,
         > + Send
@@ -60,7 +60,7 @@ impl ToolHandler {
         let tool_name = tool_name.to_string();
         let auth_enabled = self.auth_enabled;
 
-        Arc::new(move |request: CallToolRequest| {
+        Arc::new(move |request: CallToolRequestParams| {
             let tool_name = tool_name.clone();
             let executor = executor.clone(); // Clone the async executor
 
@@ -82,7 +82,7 @@ impl ToolHandler {
 
                 // Execute the tool request (with timing for metrics)
                 let start = std::time::Instant::now();
-                let params = if let Some(args) = &request.params.arguments {
+                let params = if let Some(args) = &request.arguments {
                     Self::convert_arguments_to_json(args)
                 } else {
                     "{}".to_string()
@@ -106,37 +106,17 @@ impl ToolHandler {
                     let error_message = String::from_utf8_lossy(&response.body).to_string();
                     crate::internal::telemetry::Metrics::get()
                         .record_tool_error(tool_short, method, response.status_code);
-                    return Ok(CallToolResult {
-                        content: vec![Annotated {
-                            annotations: None,
-                            raw: RawContent::Text(RawTextContent {
-                                text: error_message,
-                                meta: None,
-                            }),
-                        }],
-                        is_error: Some(true),
-                        meta: None,
-                        structured_content: None,
-                    });
+                    return Ok(CallToolResult::error(vec![
+                        ContentBlock::Text(TextContent::new(error_message)),
+                    ]));
                 }
 
                 // Convert successful response to text content
                 let text_content = String::from_utf8_lossy(&response.body).to_string();
 
-                let content = Annotated {
-                    annotations: None,
-                    raw: RawContent::Text(RawTextContent {
-                        text: text_content,
-                        meta: None,
-                    }),
-                };
-
-                Ok(CallToolResult {
-                    content: vec![content],
-                    is_error: Some(false),
-                    meta: None,
-                    structured_content: None,
-                })
+                Ok(CallToolResult::success(vec![
+                    ContentBlock::Text(TextContent::new(text_content)),
+                ]))
             })
         })
     }
@@ -208,16 +188,12 @@ mod tests {
         let executor = make_test_executor(200, "ok");
         let handler_fn = handler.create_handler("test_tool", executor);
 
-        let tool = rmcp::model::Tool {
-            name: "test_tool".into(),
-            title: Some("Test Tool".into()),
-            description: Some("A test".into()),
-            input_schema: Arc::new(serde_json::Map::new()),
-            output_schema: None,
-            annotations: None,
-            icons: None,
-            meta: None,
-        };
+        let tool = rmcp::model::Tool::new(
+            "test_tool",
+            "A test",
+            Arc::new(serde_json::Map::new()),
+        )
+        .with_title("Test Tool");
 
         handler.register_tool("test_tool", tool, handler_fn);
 
@@ -234,16 +210,11 @@ mod tests {
         for i in 0..5 {
             let name = format!("tool_{i}");
             let handler_fn = handler.create_handler(&name, executor.clone());
-            let tool = rmcp::model::Tool {
-                name: name.clone().into(),
-                title: None,
-                description: Some(format!("Tool {i}").into()),
-                input_schema: Arc::new(serde_json::Map::new()),
-                output_schema: None,
-                annotations: None,
-                icons: None,
-                meta: None,
-            };
+            let tool = rmcp::model::Tool::new(
+                name.clone(),
+                format!("Tool {i}"),
+                Arc::new(serde_json::Map::new()),
+            );
             handler.register_tool(&name, tool, handler_fn);
         }
 
@@ -262,21 +233,15 @@ mod tests {
         let mut args = Map::new();
         args.insert("query".into(), serde_json::Value::String("test".into()));
 
-        let request = rmcp::model::CallToolRequest {
-            method: rmcp::model::CallToolRequestMethod,
-            params: rmcp::model::CallToolRequestParam {
-                name: "my_tool".into(),
-                arguments: Some(args),
-            },
-            extensions: Default::default(),
-        };
+        let request = rmcp::model::CallToolRequestParams::new("my_tool")
+            .with_arguments(args);
 
         let result = handler_fn(request).await.unwrap();
         assert_eq!(result.is_error, Some(false));
         assert!(!result.content.is_empty());
 
         // Check the text content
-        if let rmcp::model::RawContent::Text(text) = &result.content[0].raw {
+        if let rmcp::model::ContentBlock::Text(text) = &result.content[0] {
             assert!(text.text.contains("hello"));
         }
     }
@@ -288,14 +253,7 @@ mod tests {
         let executor = make_test_executor(404, "not found");
         let handler_fn = handler.create_handler("failing_tool", executor);
 
-        let request = rmcp::model::CallToolRequest {
-            method: rmcp::model::CallToolRequestMethod,
-            params: rmcp::model::CallToolRequestParam {
-                name: "failing_tool".into(),
-                arguments: None,
-            },
-            extensions: Default::default(),
-        };
+        let request = rmcp::model::CallToolRequestParams::new("failing_tool");
 
         let result = handler_fn(request).await.unwrap();
         assert_eq!(result.is_error, Some(true));

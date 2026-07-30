@@ -4,3 +4,5 @@ logs/
 .env
 mcp-oauth-config.yaml
 __pycache__/
+.dirge/
+LOOP_PLAN.md

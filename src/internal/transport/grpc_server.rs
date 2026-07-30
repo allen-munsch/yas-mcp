@@ -111,14 +111,8 @@ impl McpService for McpServiceImpl {
         let arguments: serde_json::Map<String, serde_json::Value> =
             serde_json::from_str(&req.arguments).unwrap_or_default();
 
-        let mcp_request = rmcp::model::CallToolRequest {
-            method: rmcp::model::CallToolRequestMethod,
-            params: rmcp::model::CallToolRequestParam {
-                name: req.name.clone().into(),
-                arguments: Some(arguments),
-            },
-            extensions: Default::default(),
-        };
+        let mcp_request = rmcp::model::CallToolRequestParams::new(req.name.clone())
+            .with_arguments(arguments);
 
         let tool_name = req.name.clone();
         let (tx, rx) = tokio::sync::mpsc::channel(16);
@@ -131,8 +125,8 @@ impl McpService for McpServiceImpl {
                         let error_text = result
                             .content
                             .first()
-                            .map(|c| match &c.raw {
-                                rmcp::model::RawContent::Text(t) => t.text.clone(),
+                            .map(|c| match c {
+                                rmcp::model::ContentBlock::Text(t) => t.text.clone(),
                                 _ => String::new(),
                             })
                             .unwrap_or_default();
@@ -149,8 +143,8 @@ impl McpService for McpServiceImpl {
                             .await;
                     } else {
                         for content in result.content {
-                            let text = match &content.raw {
-                                rmcp::model::RawContent::Text(t) => t.text.clone(),
+                            let text = match content {
+                                rmcp::model::ContentBlock::Text(t) => t.text.clone(),
                                 _ => String::new(),
                             };
 

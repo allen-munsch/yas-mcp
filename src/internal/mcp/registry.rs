@@ -58,25 +58,15 @@ mod tests {
     use std::sync::Arc;
 
     fn make_test_tool(name: &'static str) -> RegisteredTool {
-        let tool = rmcp::model::Tool {
-            name: name.into(),
-            title: None,
-            description: Some(format!("Tool {name}").into()),
-            input_schema: Arc::new(serde_json::Map::new()),
-            output_schema: None,
-            annotations: None,
-            icons: None,
-            meta: None,
-        };
+        let tool = rmcp::model::Tool::new(
+            name,
+            format!("Tool {name}"),
+            Arc::new(serde_json::Map::new()),
+        );
 
         let executor: ToolExecutor = Arc::new(|_req| {
             Box::pin(async {
-                Ok(rmcp::model::CallToolResult {
-                    content: vec![],
-                    is_error: Some(false),
-                    meta: None,
-                    structured_content: None,
-                })
+                Ok(rmcp::model::CallToolResult::success(vec![]))
             })
         });
 
