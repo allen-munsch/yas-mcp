@@ -175,13 +175,16 @@ mod tests {
         for _ in 0..5 {
             assert!(bucket.try_consume(), "Should allow up to capacity");
         }
-        assert!(!bucket.try_consume(), "Should deny after capacity exhausted");
+        assert!(
+            !bucket.try_consume(),
+            "Should deny after capacity exhausted"
+        );
     }
 
     #[test]
     fn test_token_bucket_refills_over_time() {
         let mut bucket = TokenBucket::new(5, 100.0); // Very fast refill
-                                                      // Exhaust tokens
+        // Exhaust tokens
         for _ in 0..5 {
             bucket.try_consume();
         }

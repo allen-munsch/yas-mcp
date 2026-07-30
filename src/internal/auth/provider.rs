@@ -35,10 +35,7 @@ pub trait AuthProvider: Send + Sync {
     /// Returns `Ok(Some(identity))` on success,
     /// `Ok(None)` if no auth credentials were present (let other middleware decide),
     /// `Err(...)` if credentials were present but invalid.
-    fn authenticate(
-        &self,
-        headers: &HashMap<String, String>,
-    ) -> Result<Option<AuthIdentity>>;
+    fn authenticate(&self, headers: &HashMap<String, String>) -> Result<Option<AuthIdentity>>;
 
     /// Does this provider match the given route?
     ///
@@ -61,21 +58,16 @@ mod tests {
             "test"
         }
 
-        fn authenticate(
-            &self,
-            headers: &HashMap<String, String>,
-        ) -> Result<Option<AuthIdentity>> {
+        fn authenticate(&self, headers: &HashMap<String, String>) -> Result<Option<AuthIdentity>> {
             let auth_header = headers.get("authorization");
             match auth_header {
-                Some(h) if h == &format!("Bearer {}", self.token) => {
-                    Ok(Some(AuthIdentity {
-                        subject: "test-user".into(),
-                        name: Some("Test User".into()),
-                        email: Some("test@example.com".into()),
-                        provider: "test".into(),
-                        claims: HashMap::new(),
-                    }))
-                }
+                Some(h) if h == &format!("Bearer {}", self.token) => Ok(Some(AuthIdentity {
+                    subject: "test-user".into(),
+                    name: Some("Test User".into()),
+                    email: Some("test@example.com".into()),
+                    provider: "test".into(),
+                    claims: HashMap::new(),
+                })),
                 Some(_) => Ok(None), // Invalid token
                 None => Ok(None),    // No auth header
             }

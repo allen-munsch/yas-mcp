@@ -7,8 +7,8 @@ use crate::internal::{
     },
     server::Server,
 };
-use rmcp::model::{CallToolRequestParams, ListToolsResult, ServerInfo};
 use rmcp::ServerHandler;
+use rmcp::model::{CallToolRequestParams, ListToolsResult, ServerInfo};
 use tracing; // Add tracing import
 
 /// Pure MCP message processor - no I/O, just transforms
@@ -151,13 +151,12 @@ mod tests {
         let registry = Arc::new(ToolRegistry::new());
         // Create a minimal processor (ServerInfo is generated from a dummy)
         let mut server_info = rmcp::model::ServerInfo::new(
-            rmcp::model::ServerCapabilities::builder().enable_tools().build(),
+            rmcp::model::ServerCapabilities::builder()
+                .enable_tools()
+                .build(),
         );
         server_info = server_info
-            .with_server_info(rmcp::model::Implementation::new(
-                "test-server",
-                "1.0.0",
-            ))
+            .with_server_info(rmcp::model::Implementation::new("test-server", "1.0.0"))
             .with_protocol_version(rmcp::model::ProtocolVersion::V_2026_07_28);
         server_info.instructions = Some("Test MCP Server".into());
 
@@ -188,14 +187,8 @@ mod tests {
 
         let result = response.result.unwrap();
         assert!(result.get("serverInfo").is_some());
-        assert_eq!(
-            result["serverInfo"]["name"],
-            "test-server"
-        );
-        assert_eq!(
-            result["protocolVersion"],
-            "2026-07-28"
-        );
+        assert_eq!(result["serverInfo"]["name"], "test-server");
+        assert_eq!(result["protocolVersion"], "2026-07-28");
     }
 
     #[tokio::test]
@@ -240,18 +233,12 @@ mod tests {
         use crate::internal::mcp::registry::RegisteredTool;
         use crate::internal::server::tool::handler::ToolExecutor;
 
-        let tool = rmcp::model::Tool::new(
-            "test_tool",
-            "A test tool",
-            Arc::new(serde_json::Map::new()),
-        )
-        .with_title("Test Tool");
+        let tool =
+            rmcp::model::Tool::new("test_tool", "A test tool", Arc::new(serde_json::Map::new()))
+                .with_title("Test Tool");
 
-        let executor: ToolExecutor = Arc::new(|_req| {
-            Box::pin(async {
-                Ok(rmcp::model::CallToolResult::success(vec![]))
-            })
-        });
+        let executor: ToolExecutor =
+            Arc::new(|_req| Box::pin(async { Ok(rmcp::model::CallToolResult::success(vec![])) }));
 
         registry.register(
             "test_tool".into(),
@@ -366,9 +353,6 @@ mod tests {
             McpMethod::from("notifications/initialized"),
             McpMethod::Initialized
         );
-        assert!(matches!(
-            McpMethod::from("bogus"),
-            McpMethod::Unknown(_)
-        ));
+        assert!(matches!(McpMethod::from("bogus"), McpMethod::Unknown(_)));
     }
 }

@@ -49,8 +49,13 @@ impl McpService for McpServiceImpl {
         request: Request<InitializeRequest>,
     ) -> Result<Response<InitializeResponse>, Status> {
         let _req = request.into_inner();
-        info!("[gRPC] initialize — client: {}", 
-            _req.client_info.as_ref().map(|c| c.name.as_str()).unwrap_or("unknown"));
+        info!(
+            "[gRPC] initialize — client: {}",
+            _req.client_info
+                .as_ref()
+                .map(|c| c.name.as_str())
+                .unwrap_or("unknown")
+        );
 
         Ok(Response::new(InitializeResponse {
             protocol_version: "2024-11-05".into(),
@@ -111,8 +116,8 @@ impl McpService for McpServiceImpl {
         let arguments: serde_json::Map<String, serde_json::Value> =
             serde_json::from_str(&req.arguments).unwrap_or_default();
 
-        let mcp_request = rmcp::model::CallToolRequestParams::new(req.name.clone())
-            .with_arguments(arguments);
+        let mcp_request =
+            rmcp::model::CallToolRequestParams::new(req.name.clone()).with_arguments(arguments);
 
         let tool_name = req.name.clone();
         let (tx, rx) = tokio::sync::mpsc::channel(16);
@@ -134,9 +139,9 @@ impl McpService for McpServiceImpl {
                         let _ = tx
                             .send(Ok(CallToolResponse {
                                 is_final: true,
-                                content: Some(call_tool_response::Content::Text(
-                                    TextContent { text: error_text },
-                                )),
+                                content: Some(call_tool_response::Content::Text(TextContent {
+                                    text: error_text,
+                                })),
                                 is_error: true,
                                 error_message: "Tool execution failed".into(),
                             }))
@@ -151,9 +156,9 @@ impl McpService for McpServiceImpl {
                             let _ = tx
                                 .send(Ok(CallToolResponse {
                                     is_final: false,
-                                    content: Some(call_tool_response::Content::Text(
-                                        TextContent { text },
-                                    )),
+                                    content: Some(call_tool_response::Content::Text(TextContent {
+                                        text,
+                                    })),
                                     is_error: false,
                                     error_message: String::new(),
                                 }))
@@ -184,15 +189,12 @@ impl McpService for McpServiceImpl {
             }
         });
 
-        Ok(Response::new(
-            tokio_stream::wrappers::ReceiverStream::new(rx),
-        ))
+        Ok(Response::new(tokio_stream::wrappers::ReceiverStream::new(
+            rx,
+        )))
     }
 
-    async fn ping(
-        &self,
-        _request: Request<PingRequest>,
-    ) -> Result<Response<PingResponse>, Status> {
+    async fn ping(&self, _request: Request<PingRequest>) -> Result<Response<PingResponse>, Status> {
         Ok(Response::new(PingResponse {}))
     }
 }
@@ -213,10 +215,7 @@ impl McpTransport for GrpcServer {
             registry,
         };
 
-        info!(
-            "gRPC server starting on {}",
-            addr
-        );
+        info!("gRPC server starting on {}", addr);
 
         let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
         health_reporter

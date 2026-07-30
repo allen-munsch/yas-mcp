@@ -145,14 +145,16 @@ impl SecretResolver for FileResolver {
     }
 
     async fn resolve(&self, secret_ref: &SecretRef) -> Result<String> {
-        let content = tokio::fs::read_to_string(&secret_ref.path).await.map_err(|e| {
-            anyhow::anyhow!(
-                "Failed to read secret file '{}' (referenced as file://{}): {}",
-                secret_ref.path,
-                secret_ref.path,
-                e
-            )
-        })?;
+        let content = tokio::fs::read_to_string(&secret_ref.path)
+            .await
+            .map_err(|e| {
+                anyhow::anyhow!(
+                    "Failed to read secret file '{}' (referenced as file://{}): {}",
+                    secret_ref.path,
+                    secret_ref.path,
+                    e
+                )
+            })?;
 
         // Trim trailing newline (common in Docker secrets)
         Ok(content.trim().to_string())
@@ -260,8 +262,7 @@ mod tests {
         std::fs::write(tmp.path(), "file-secret-value\n").unwrap();
 
         let resolver = FileResolver;
-        let secret_ref =
-            SecretRef::parse(&format!("file://{}", tmp.path().display())).unwrap();
+        let secret_ref = SecretRef::parse(&format!("file://{}", tmp.path().display())).unwrap();
         let value = resolver.resolve(&secret_ref).await.unwrap();
         assert_eq!(value, "file-secret-value"); // newline trimmed
     }

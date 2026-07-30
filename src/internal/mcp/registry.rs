@@ -64,11 +64,8 @@ mod tests {
             Arc::new(serde_json::Map::new()),
         );
 
-        let executor: ToolExecutor = Arc::new(|_req| {
-            Box::pin(async {
-                Ok(rmcp::model::CallToolResult::success(vec![]))
-            })
-        });
+        let executor: ToolExecutor =
+            Arc::new(|_req| Box::pin(async { Ok(rmcp::model::CallToolResult::success(vec![])) }));
 
         RegisteredTool {
             metadata: tool,
@@ -148,16 +145,14 @@ mod tests {
         // Use static string literals stored as leaked strings for test purposes
         let t1 = thread::spawn(move || {
             for i in 0..50 {
-                let name: &'static str =
-                    Box::leak(format!("tool_{i}").into_boxed_str());
+                let name: &'static str = Box::leak(format!("tool_{i}").into_boxed_str());
                 r1.register(name.to_string(), make_test_tool(name));
             }
         });
 
         let t2 = thread::spawn(move || {
             for i in 50..100 {
-                let name: &'static str =
-                    Box::leak(format!("tool_{i}").into_boxed_str());
+                let name: &'static str = Box::leak(format!("tool_{i}").into_boxed_str());
                 r2.register(name.to_string(), make_test_tool(name));
             }
         });

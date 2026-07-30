@@ -3,7 +3,7 @@
 //! Set MCP_SERVER_URL env var (default: http://127.0.0.1:3000).
 
 use reqwest::Client;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 fn mcp_url() -> String {
     std::env::var("MCP_SERVER_URL").unwrap_or_else(|_| "http://127.0.0.1:3000".into())

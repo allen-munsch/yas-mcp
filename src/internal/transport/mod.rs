@@ -8,7 +8,7 @@ pub mod stdio;
 pub mod grpc;
 mod grpc_server;
 
-pub use grpc::{create_grpc_transport, GrpcConfig, McpTransport};
+pub use grpc::{GrpcConfig, McpTransport, create_grpc_transport};
 
 /// Transport abstraction for different MCP communication channels
 #[async_trait]

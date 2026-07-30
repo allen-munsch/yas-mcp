@@ -10,8 +10,8 @@ pub mod types;
 pub use types::{Parser, RouteTool};
 
 // Export Adjuster
-pub use adjuster::Adjuster;
 use crate::internal::requester::types::RouteConfig;
+pub use adjuster::Adjuster;
 use anyhow::{Context, Result};
 use openapiv3::{OpenAPI, Parameter, ReferenceOr, Schema, SchemaKind, Type};
 use regex::Regex;
@@ -377,11 +377,7 @@ impl SwaggerParser {
 
         let final_input = input_val.as_object().unwrap().clone();
 
-        rmcp::model::Tool::new(
-            tool_name,
-            description,
-            Arc::new(final_input),
-        )
+        rmcp::model::Tool::new(tool_name, description, Arc::new(final_input))
     }
 }
 
@@ -605,10 +601,12 @@ mod tests {
 
         let result = SwaggerParser::schema_to_json_schema(&schema);
         assert_eq!(result["type"], "string");
-        assert!(result["description"]
-            .as_str()
-            .unwrap()
-            .contains("string field"));
+        assert!(
+            result["description"]
+                .as_str()
+                .unwrap()
+                .contains("string field")
+        );
     }
 
     #[test]
@@ -672,16 +670,17 @@ mod tests {
 
         let tools = parser.get_route_tools();
         // Petstore has 5 operations: list, create, show, update, delete
-        assert!(tools.len() >= 3, "Expected at least 3 tools, got {}", tools.len());
+        assert!(
+            tools.len() >= 3,
+            "Expected at least 3 tools, got {}",
+            tools.len()
+        );
     }
 
     #[test]
     fn test_parse_with_adjustments() {
         let mut parser = SwaggerParser::new(Adjuster::new());
-        let result = parser.init(
-            "examples/petstore.yaml",
-            Some("adjustments.yaml"),
-        );
+        let result = parser.init("examples/petstore.yaml", Some("adjustments.yaml"));
         assert!(result.is_ok());
 
         let tools = parser.get_route_tools();

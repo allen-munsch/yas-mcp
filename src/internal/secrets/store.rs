@@ -89,11 +89,7 @@ impl SecretStore {
             value = extract_json_key(&value, key)?;
         }
 
-        debug!(
-            "Resolved secret '{}' via {} resolver",
-            raw,
-            resolver.name()
-        );
+        debug!("Resolved secret '{}' via {} resolver", raw, resolver.name());
 
         Ok(value)
     }
@@ -129,10 +125,12 @@ impl SecretStore {
 /// For backends like Vault that return `{"data": {"api_key": "sk-..."}}`,
 /// you can reference `vault://secret/data/app#data.api_key`.
 fn extract_json_key(json_str: &str, key: &str) -> Result<String> {
-    let value: serde_json::Value =
-        serde_json::from_str(json_str).map_err(|e| {
-            anyhow::anyhow!("Secret backend returned non-JSON but a key was requested: {}", e)
-        })?;
+    let value: serde_json::Value = serde_json::from_str(json_str).map_err(|e| {
+        anyhow::anyhow!(
+            "Secret backend returned non-JSON but a key was requested: {}",
+            e
+        )
+    })?;
 
     // Support nested keys like "data.api_key"
     let mut current = &value;

@@ -8,7 +8,7 @@ use crate::internal::transport::runner::TransportRunner;
 use crate::internal::transport::stdio::StdioTransport;
 
 use anyhow::{Context, Result};
-use rmcp::{model::*, service::RequestContext, ErrorData as McpError, RoleServer, ServerHandler};
+use rmcp::{ErrorData as McpError, RoleServer, ServerHandler, model::*, service::RequestContext};
 use std::process;
 use std::sync::Arc;
 use tracing::{error, info};
@@ -82,9 +82,7 @@ impl ServerHandler for Server {
     }
 
     fn get_info(&self) -> ServerInfo {
-        let mut info = ServerInfo::new(
-            ServerCapabilities::builder().enable_tools().build(),
-        );
+        let mut info = ServerInfo::new(ServerCapabilities::builder().enable_tools().build());
         info = info.with_server_info(Implementation::new(
             self.config.server.name.clone(),
             self.config.server.version.clone(),
@@ -203,11 +201,11 @@ impl Server {
     /// Serve in HTTP mode - proper MCP JSON-RPC over HTTP (with optional A2A)
     async fn serve_http(&self) -> Result<()> {
         use axum::{
+            Json,
             extract::State,
             http::StatusCode,
             response::IntoResponse,
             routing::{get, post},
-            Json,
         };
         use serde_json::Value;
         async fn health() -> impl IntoResponse {
@@ -223,7 +221,12 @@ impl Server {
 
         // Check if A2A is enabled
         let a2a_enabled = self.config.a2a.as_ref().map(|a| a.enabled).unwrap_or(false);
-        let wimse_enabled = self.config.wimse.as_ref().map(|w| w.enabled).unwrap_or(false);
+        let wimse_enabled = self
+            .config
+            .wimse
+            .as_ref()
+            .map(|w| w.enabled)
+            .unwrap_or(false);
         if a2a_enabled {
             info!("A2A protocol enabled — agent-to-agent endpoints available");
         }
@@ -246,7 +249,11 @@ impl Server {
             drop(tool_handler);
 
             let task_store = Arc::new(crate::internal::a2a::TaskStore::new(
-                self.config.a2a.as_ref().map(|a| a.max_concurrent_tasks).unwrap_or(100),
+                self.config
+                    .a2a
+                    .as_ref()
+                    .map(|a| a.max_concurrent_tasks)
+                    .unwrap_or(100),
                 self.config.a2a.as_ref().map(|a| a.task_ttl).unwrap_or(3600),
             ));
 
@@ -383,11 +390,7 @@ impl Server {
             );
 
             match serde_json::to_string_pretty(&catalog) {
-                Ok(json) => (
-                    StatusCode::OK,
-                    [("content-type", "application/json")],
-                    json,
-                ),
+                Ok(json) => (StatusCode::OK, [("content-type", "application/json")], json),
                 Err(e) => (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     [("content-type", "text/plain")],
@@ -401,9 +404,7 @@ impl Server {
             State(app_state): State<AppState>,
             Json(body): Json<serde_json::Value>,
         ) -> impl IntoResponse {
-            use crate::internal::auth::wimse::{
-                Audience, IdentityValidator, TokenExchangeRequest,
-            };
+            use crate::internal::auth::wimse::{Audience, IdentityValidator, TokenExchangeRequest};
 
             // Parse the request
             let req: TokenExchangeRequest = match serde_json::from_value(body) {
@@ -579,11 +580,7 @@ impl Server {
                 .connector_tokens
                 .store(connector, access_token, expires_in);
 
-            tracing::info!(
-                connector,
-                expires_in,
-                "connector token pushed to cache"
-            );
+            tracing::info!(connector, expires_in, "connector token pushed to cache");
 
             (
                 StatusCode::OK,
@@ -617,14 +614,17 @@ impl Server {
         // Merge A2A routes if enabled
         if let Some(a2a) = a2a_state {
             use crate::internal::a2a::router::{
-                agent_card_handler, tasks_cancel_handler, tasks_get_handler,
-                tasks_send_handler, tasks_send_subscribe_handler,
+                agent_card_handler, tasks_cancel_handler, tasks_get_handler, tasks_send_handler,
+                tasks_send_subscribe_handler,
             };
 
             let a2a_routes = axum::Router::new()
                 .route("/.well-known/agent-card.json", get(agent_card_handler))
                 .route("/a2a/tasks/send", post(tasks_send_handler))
-                .route("/a2a/tasks/sendSubscribe", post(tasks_send_subscribe_handler))
+                .route(
+                    "/a2a/tasks/sendSubscribe",
+                    post(tasks_send_subscribe_handler),
+                )
                 .route("/a2a/tasks/get", get(tasks_get_handler))
                 .route("/a2a/tasks/cancel", post(tasks_cancel_handler))
                 .with_state(a2a);
@@ -640,14 +640,23 @@ impl Server {
 
         info!("HTTP MCP server listening on {}", addr);
         info!("Endpoint: POST http://{}/mcp", addr);
-        info!("AI Catalog: GET http://{}/.well-known/ai-catalog.json", addr);
+        info!(
+            "AI Catalog: GET http://{}/.well-known/ai-catalog.json",
+            addr
+        );
         info!("Metrics: GET http://{}/metrics", addr);
         if wimse_enabled {
-            info!("WIMSE Token Exchange: POST http://{}/api/auth/exchange", addr);
+            info!(
+                "WIMSE Token Exchange: POST http://{}/api/auth/exchange",
+                addr
+            );
             info!("WIMSE Token Push:    POST http://{}/api/auth/tokens", addr);
         }
         if a2a_enabled {
-            info!("A2A Agent Card: GET http://{}/.well-known/agent-card.json", addr);
+            info!(
+                "A2A Agent Card: GET http://{}/.well-known/agent-card.json",
+                addr
+            );
             info!("A2A Tasks: POST http://{}/a2a/tasks/send", addr);
         }
 
@@ -707,7 +716,7 @@ impl Server {
 
     /// Serve in gRPC mode — experimental
     async fn serve_grpc(&self) -> Result<()> {
-        use crate::internal::transport::{create_grpc_transport, GrpcConfig};
+        use crate::internal::transport::{GrpcConfig, create_grpc_transport};
 
         let config = GrpcConfig {
             port: self.config.server.grpc_port,
@@ -720,9 +729,7 @@ impl Server {
         drop(tool_handler);
 
         let transport = create_grpc_transport(config)?;
-        transport
-            .serve(self.tool_handler.clone(), registry)
-            .await
+        transport.serve(self.tool_handler.clone(), registry).await
     }
 
     pub async fn start(&self) -> Result<()> {
@@ -819,10 +826,15 @@ impl Server {
         let mut providers: Vec<Box<dyn AuthProvider>> = Vec::new();
 
         for provider_cfg in &auth_config.middleware_chain {
-            let provider: Option<Box<dyn AuthProvider>> = match provider_cfg.provider_type.as_str() {
+            let provider: Option<Box<dyn AuthProvider>> = match provider_cfg.provider_type.as_str()
+            {
                 "none" | "passthrough" => None,
                 "bearer_token" | "bearer" => {
-                    let token_raw = provider_cfg.config.get("token").cloned().unwrap_or_default();
+                    let token_raw = provider_cfg
+                        .config
+                        .get("token")
+                        .cloned()
+                        .unwrap_or_default();
                     let route = provider_cfg
                         .route_filter
                         .clone()
@@ -970,15 +982,13 @@ impl crate::internal::auth::provider::AuthProvider for ApiKeyProvider {
     ) -> anyhow::Result<Option<crate::internal::auth::provider::AuthIdentity>> {
         let api_key = headers.get(&self.header_name);
         match api_key {
-            Some(k) if k == &self.key => {
-                Ok(Some(crate::internal::auth::provider::AuthIdentity {
-                    subject: "api-key-authenticated".into(),
-                    name: None,
-                    email: None,
-                    provider: "api_key".into(),
-                    claims: std::collections::HashMap::new(),
-                }))
-            }
+            Some(k) if k == &self.key => Ok(Some(crate::internal::auth::provider::AuthIdentity {
+                subject: "api-key-authenticated".into(),
+                name: None,
+                email: None,
+                provider: "api_key".into(),
+                claims: std::collections::HashMap::new(),
+            })),
             Some(_) => Ok(None),
             None => Ok(None),
         }

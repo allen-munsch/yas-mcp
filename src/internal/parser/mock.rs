@@ -28,7 +28,7 @@
 //! ```
 
 use rand::Rng;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use tracing::debug;
 
 /// Generate a mock response for a response schema
@@ -47,7 +47,11 @@ pub fn generate_mock_from_schema(schema: &Value) -> Value {
                 }
             }
             // Check for oneOf/anyOf — pick first option
-            if let Some(one_of) = schema.get("oneOf").or(schema.get("anyOf")).and_then(|a| a.as_array()) {
+            if let Some(one_of) = schema
+                .get("oneOf")
+                .or(schema.get("anyOf"))
+                .and_then(|a| a.as_array())
+            {
                 if let Some(first) = one_of.first() {
                     return generate_mock_from_schema(first);
                 }
@@ -74,7 +78,9 @@ fn mock_string(schema: &Value) -> Value {
         Some("ipv4") => json!("192.168.1.1"),
         Some("ipv6") => json!("::1"),
         _ => {
-            let words = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta"];
+            let words = [
+                "alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta",
+            ];
             let i = rand::thread_rng().gen_range(0..words.len());
             json!(words[i])
         }
@@ -86,8 +92,14 @@ fn mock_number(schema: &Value) -> Value {
         return ex.clone();
     }
     let mut rng = rand::thread_rng();
-    let min = schema.get("minimum").and_then(|v| v.as_f64()).unwrap_or(0.0);
-    let max = schema.get("maximum").and_then(|v| v.as_f64()).unwrap_or(100.0);
+    let min = schema
+        .get("minimum")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
+    let max = schema
+        .get("maximum")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(100.0);
     let val = rng.gen_range(min..max);
     if schema.get("type").and_then(|t| t.as_str()) == Some("integer") {
         json!(val as i64)
@@ -107,12 +119,21 @@ fn mock_array(schema: &Value) -> Value {
     if let Some(ex) = schema.get("example") {
         return ex.clone();
     }
-    let items = schema.get("items").cloned().unwrap_or(json!({"type": "string"}));
+    let items = schema
+        .get("items")
+        .cloned()
+        .unwrap_or(json!({"type": "string"}));
     let min = schema.get("minItems").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
     let max = schema.get("maxItems").and_then(|v| v.as_u64()).unwrap_or(3) as usize;
-    let count = if min < max { rand::thread_rng().gen_range(min..=max) } else { min };
+    let count = if min < max {
+        rand::thread_rng().gen_range(min..=max)
+    } else {
+        min
+    };
 
-    let arr: Vec<Value> = (0..count).map(|_| generate_mock_from_schema(&items)).collect();
+    let arr: Vec<Value> = (0..count)
+        .map(|_| generate_mock_from_schema(&items))
+        .collect();
     json!(arr)
 }
 
@@ -140,14 +161,8 @@ fn mock_object(schema: &Value) -> Value {
 
 /// Generate a mock HTTP response for a given path and method from an OpenAPI spec.
 /// Returns (status_code, response_body_json).
-pub fn mock_response_for_route(
-    spec: &Value,
-    path: &str,
-    method: &str,
-) -> Option<(u16, Value)> {
-    let path_item = spec
-        .get("paths")?
-        .get(path)?;
+pub fn mock_response_for_route(spec: &Value, path: &str, method: &str) -> Option<(u16, Value)> {
+    let path_item = spec.get("paths")?.get(path)?;
 
     // Handle path parameters — try exact match first, then template match
     let path_item = if path_item.is_object() {
@@ -296,7 +311,10 @@ mod tests {
     #[test]
     fn test_path_matches_template() {
         assert!(path_matches_template("/users/42", "/users/{id}"));
-        assert!(path_matches_template("/orgs/acme/repos/123", "/orgs/{org}/repos/{repo}"));
+        assert!(path_matches_template(
+            "/orgs/acme/repos/123",
+            "/orgs/{org}/repos/{repo}"
+        ));
         assert!(!path_matches_template("/users/42/posts", "/users/{id}"));
         assert!(!path_matches_template("/other/42", "/users/{id}"));
     }

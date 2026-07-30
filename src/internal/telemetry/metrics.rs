@@ -17,9 +17,9 @@
 //! | `yas_mcp_build_info` | Gauge | `version` | Build info (constant 1) |
 
 use prometheus::{
-    self, register_counter_vec_with_registry, register_gauge_vec_with_registry,
-    register_histogram_vec_with_registry, CounterVec, GaugeVec, HistogramVec, Registry,
-    TextEncoder,
+    self, CounterVec, GaugeVec, HistogramVec, Registry, TextEncoder,
+    register_counter_vec_with_registry, register_gauge_vec_with_registry,
+    register_histogram_vec_with_registry,
 };
 use std::sync::OnceLock;
 use tracing::info;
@@ -164,9 +164,7 @@ impl Metrics {
 
     /// Record a tool call with its duration
     pub fn record_tool_call(&self, tool: &str, method: &str, duration_secs: f64) {
-        self.tool_calls
-            .with_label_values(&[tool, method])
-            .inc();
+        self.tool_calls.with_label_values(&[tool, method]).inc();
         self.tool_duration
             .with_label_values(&[tool, method])
             .observe(duration_secs);

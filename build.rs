@@ -15,7 +15,10 @@ fn main() -> Result<()> {
         .emit()?;
 
     // Compile protobuf if protoc is available (needed for gRPC feature)
-    match std::process::Command::new("protoc").arg("--version").output() {
+    match std::process::Command::new("protoc")
+        .arg("--version")
+        .output()
+    {
         Ok(_) => {
             println!("cargo:warning=compiling protobuf definitions");
             tonic_build::configure()

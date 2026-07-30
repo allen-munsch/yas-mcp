@@ -1,11 +1,14 @@
-use anyhow::{anyhow, Context, Result};
-use reqwest::{Client, header::{HeaderMap, HeaderName, HeaderValue, USER_AGENT}};
-use uuid::Uuid;
+use anyhow::{Context, Result, anyhow};
+use reqwest::{
+    Client,
+    header::{HeaderMap, HeaderName, HeaderValue, USER_AGENT},
+};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::{debug, error, info};
+use uuid::Uuid;
 
 use crate::internal::config::EndpointConfig;
 use crate::internal::requester::RouteExecutor;
@@ -25,7 +28,10 @@ pub struct HttpRequester {
 
 impl HttpRequester {
     pub fn new(service_cfg: &EndpointConfig) -> Result<Self> {
-        info!("Initializing HttpRequester with base_url: '{}'", service_cfg.base_url);
+        info!(
+            "Initializing HttpRequester with base_url: '{}'",
+            service_cfg.base_url
+        );
         info!("Headers in config: {:?}", service_cfg.headers);
         let mut default_headers = HeaderMap::new();
         for (k, v) in &service_cfg.headers {
@@ -153,8 +159,12 @@ impl HttpRequester {
                 // 4. Handle Dynamic Headers
                 for header_key in &known_header_params {
                     if let Some(val) = active_params.remove(header_key) {
-                        let header_val  = val.as_str().map(|s| s.to_string()).unwrap_or_else(|| val.to_string());
-                        request_builder = request_builder.header(header_key.as_str(), header_val.clone());
+                        let header_val = val
+                            .as_str()
+                            .map(|s| s.to_string())
+                            .unwrap_or_else(|| val.to_string());
+                        request_builder =
+                            request_builder.header(header_key.as_str(), header_val.clone());
                         debug!(request_id = %request_id, header_key = %header_key, header_val = %header_val, "Dynamic header applied");
                     }
                 }
@@ -162,7 +172,10 @@ impl HttpRequester {
                 // 5. Handle Query Params (Explicit list)
                 for query_key in &known_query_params {
                     if let Some(val) = active_params.remove(query_key) {
-                        let query_val = val.as_str().map(|s| s.to_string()).unwrap_or_else(|| val.to_string());
+                        let query_val = val
+                            .as_str()
+                            .map(|s| s.to_string())
+                            .unwrap_or_else(|| val.to_string());
                         request_builder = request_builder.query(&[(query_key, query_val.clone())]);
                         debug!(request_id = %request_id, query_key = %query_key, query_val = %val, "Query param applied");
                     }
@@ -337,7 +350,11 @@ mod tests {
             ..Default::default()
         };
         let executor = requester.build_route_executor(&route_config);
-        assert!(executor.is_ok(), "Should build executor: {:?}", executor.err());
+        assert!(
+            executor.is_ok(),
+            "Should build executor: {:?}",
+            executor.err()
+        );
     }
 
     #[test]

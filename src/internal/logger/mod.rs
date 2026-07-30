@@ -8,10 +8,10 @@ use std::fs::{self, OpenOptions};
 use std::io;
 use std::path::Path;
 use tracing_subscriber::{
+    EnvFilter, // Directly import EnvFilter
     fmt::{self},
     layer::SubscriberExt,
     util::SubscriberInitExt,
-    EnvFilter, // Directly import EnvFilter
 };
 
 use crate::internal::config::LoggingConfig;
@@ -24,7 +24,9 @@ pub fn init_logger(cfg: &LoggingConfig) -> anyhow::Result<()> {
 
     // Warn if JSON format is requested (requires feature)
     if cfg.format == "json" {
-        eprintln!("Warning: JSON format requires the 'json' feature in tracing-subscriber. Using default format.");
+        eprintln!(
+            "Warning: JSON format requires the 'json' feature in tracing-subscriber. Using default format."
+        );
     }
 
     // Build the subscriber based on configuration

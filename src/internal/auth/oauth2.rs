@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -146,7 +146,7 @@ impl OAuth2Client {
                 return Err(anyhow!(
                     "No user info URL configured for {}",
                     self.config.provider
-                ))
+                ));
             }
         };
 
@@ -325,7 +325,9 @@ mod tests {
         assert!(url.contains("client_id=test-client"));
         assert!(url.contains("state=state123"));
         assert!(url.contains("scope=openid") && url.contains("profile"));
-        assert!(url.contains("redirect_uri=") && url.contains("localhost") && url.contains("callback"));
+        assert!(
+            url.contains("redirect_uri=") && url.contains("localhost") && url.contains("callback")
+        );
     }
 
     #[test]

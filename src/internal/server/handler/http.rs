@@ -1,13 +1,13 @@
 // src/internal/server/handler/http.rs
 
 use axum::{
+    Router,
     body::Body,
     // Removed extract::State
     http::{Request, StatusCode}, // Removed HeaderMap
     middleware::{self, Next},
     response::IntoResponse,
     routing::get,
-    Router,
 };
 // Removed std::sync::Arc;
 use tower::ServiceBuilder;

@@ -103,7 +103,9 @@ mod tests {
     fn make_processor() -> (McpProcessor, Arc<ToolRegistry>) {
         let registry = Arc::new(ToolRegistry::new());
         let mut server_info = rmcp::model::ServerInfo::new(
-            rmcp::model::ServerCapabilities::builder().enable_tools().build(),
+            rmcp::model::ServerCapabilities::builder()
+                .enable_tools()
+                .build(),
         );
         server_info = server_info.with_server_info(rmcp::model::Implementation::new("test", "1.0"));
         server_info.instructions = Some("Test server".into());
@@ -119,18 +121,17 @@ mod tests {
         let (processor, _) = make_processor();
         let transport = MockTransport::new();
 
-        let request: JsonRpcRequest =
-            serde_json::from_value(serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "initialize",
-                "params": {
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": {},
-                    "clientInfo": {"name": "test", "version": "1.0"}
-                }
-            }))
-            .unwrap();
+        let request: JsonRpcRequest = serde_json::from_value(serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {"name": "test", "version": "1.0"}
+            }
+        }))
+        .unwrap();
 
         transport.queue_request(&request);
 
@@ -147,12 +148,11 @@ mod tests {
         let (processor, _) = make_processor();
         let transport = MockTransport::new();
 
-        let notification: JsonRpcRequest =
-            serde_json::from_value(serde_json::json!({
-                "jsonrpc": "2.0",
-                "method": "notifications/initialized"
-            }))
-            .unwrap();
+        let notification: JsonRpcRequest = serde_json::from_value(serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized"
+        }))
+        .unwrap();
 
         transport.queue_request(&notification);
 
@@ -185,14 +185,13 @@ mod tests {
         let (processor, _) = make_processor();
         let transport = MockTransport::new();
 
-        let request: JsonRpcRequest =
-            serde_json::from_value(serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "unknown/method",
-                "params": {}
-            }))
-            .unwrap();
+        let request: JsonRpcRequest = serde_json::from_value(serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "unknown/method",
+            "params": {}
+        }))
+        .unwrap();
 
         transport.queue_request(&request);
 

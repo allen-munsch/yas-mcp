@@ -7,7 +7,7 @@
 //! In local dev, they skip if no server is running.
 
 use reqwest::Client;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -35,12 +35,7 @@ async fn wait_for_server(client: &Client, base_url: &str) -> Result<(), String> 
     Err(format!("MCP server not available at {base_url}"))
 }
 
-async fn mcp_request(
-    client: &Client,
-    base_url: &str,
-    method: &str,
-    params: Value,
-) -> Value {
+async fn mcp_request(client: &Client, base_url: &str, method: &str, params: Value) -> Value {
     let payload = json!({
         "jsonrpc": "2.0",
         "id": 1,
@@ -243,24 +238,22 @@ async fn test_a2a_task_send_and_get() {
             assert!(task.get("status").is_some(), "Task should have status");
 
             let task_id = task["id"].as_str().unwrap_or("");
-            println!("✅ Task created: {task_id}, state: {:?}", task["status"]["state"]);
+            println!(
+                "✅ Task created: {task_id}, state: {:?}",
+                task["status"]["state"]
+            );
 
             // Get task status
             if !task_id.is_empty() {
                 let get_resp = client
-                    .get(format!(
-                        "{url}/a2a/tasks/get?id={task_id}"
-                    ))
+                    .get(format!("{url}/a2a/tasks/get?id={task_id}"))
                     .send()
                     .await;
 
                 if let Ok(r) = get_resp {
                     if r.status().is_success() {
                         let task_status: Value = r.json().await.unwrap_or_default();
-                        println!(
-                            "✅ Task status: {:?}",
-                            task_status["status"]["state"]
-                        );
+                        println!("✅ Task status: {:?}", task_status["status"]["state"]);
                     }
                 }
             }
@@ -451,14 +444,22 @@ fn get_tool_parameters(tool_name: &str) -> Value {
         "get_users_me" => json!({}),
         "post_auth_login" => json!({"email": "test@example.com", "password": "test123"}),
         "get_projects" => json!({"page": 1, "per_page": 10}),
-        "post_projects" => json!({"title": "Test Project", "description": "Test Desc", "color": "#3B82F6"}),
+        "post_projects" => {
+            json!({"title": "Test Project", "description": "Test Desc", "color": "#3B82F6"})
+        }
         "get_projects___project_id__" => json!({"project_id": project_id}),
         "get_analytics_projects_stats" => json!({"timeframe": "month"}),
         _ => {
             if tool_name.contains("__") {
                 let path_param = tool_name
                     .split("___")
-                    .find(|s| !s.is_empty() && *s != "get" && *s != "post" && *s != "put" && *s != "delete")
+                    .find(|s| {
+                        !s.is_empty()
+                            && *s != "get"
+                            && *s != "post"
+                            && *s != "put"
+                            && *s != "delete"
+                    })
                     .unwrap_or("id");
                 json!({ path_param: format!("test-{path_param}") })
             } else {
