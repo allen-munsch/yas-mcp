@@ -49,7 +49,10 @@ async fn test_initialize_handshake() {
     );
 
     let mut runner = TransportRunner::new(transport.clone(), Arc::new(processor));
-    eprintln!("[TEST] Created runner with cloned transport. Original transport input queue size before run(): {}", transport.inputs.lock().unwrap().len());
+    eprintln!(
+        "[TEST] Created runner with cloned transport. Original transport input queue size before run(): {}",
+        transport.inputs.lock().unwrap().len()
+    );
 
     let result = runner.run().await;
     eprintln!("[TEST] run() completed with result: {:?}", result);

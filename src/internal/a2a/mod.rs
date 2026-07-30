@@ -13,8 +13,8 @@ pub mod types;
 // Re-export key types
 pub use agent_card::AgentCardGenerator;
 pub use router::{
-    agent_card_handler, tasks_cancel_handler, tasks_get_handler, tasks_send_handler,
-    tasks_send_subscribe_handler, A2aState,
+    A2aState, agent_card_handler, tasks_cancel_handler, tasks_get_handler, tasks_send_handler,
+    tasks_send_subscribe_handler,
 };
 pub use task_store::TaskStore;
 pub use types::AgentCard;

@@ -318,8 +318,12 @@ impl AppConfig {
         // Strip known extensions — File::with_name auto-appends .yaml/.json/etc.
         // so passing "config.yaml" results in "config.yaml.yaml" (not found).
         let config_name = match app_config_path {
-            Some(p) if p.ends_with(".yaml") || p.ends_with(".yml")
-                       || p.ends_with(".json") || p.ends_with(".toml") => {
+            Some(p)
+                if p.ends_with(".yaml")
+                    || p.ends_with(".yml")
+                    || p.ends_with(".json")
+                    || p.ends_with(".toml") =>
+            {
                 &p[..p.rfind('.').unwrap()]
             }
             Some(p) => p,
@@ -369,15 +373,15 @@ impl AppConfig {
         }
 
         // Process scopes if they're provided as space-separated string
-        if let Some(oauth) = &mut app_config.oauth {
-            if oauth.scopes.len() == 1 {
-                let single_scope = &oauth.scopes[0];
-                if single_scope.contains(' ') {
-                    oauth.scopes = single_scope
-                        .split_whitespace()
-                        .map(|s| s.to_string())
-                        .collect();
-                }
+        if let Some(oauth) = &mut app_config.oauth
+            && oauth.scopes.len() == 1
+        {
+            let single_scope = &oauth.scopes[0];
+            if single_scope.contains(' ') {
+                oauth.scopes = single_scope
+                    .split_whitespace()
+                    .map(|s| s.to_string())
+                    .collect();
             }
         }
 

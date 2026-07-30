@@ -32,11 +32,19 @@ pub struct AgentCard {
 }
 
 fn default_input_modes() -> Vec<String> {
-    vec!["text".into(), "text/plain".into(), "application/json".into()]
+    vec![
+        "text".into(),
+        "text/plain".into(),
+        "application/json".into(),
+    ]
 }
 
 fn default_output_modes() -> Vec<String> {
-    vec!["text".into(), "text/plain".into(), "application/json".into()]
+    vec![
+        "text".into(),
+        "text/plain".into(),
+        "application/json".into(),
+    ]
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -339,10 +347,7 @@ mod tests {
 
         for (expected, state) in states {
             let json = serde_json::to_string(&state).unwrap();
-            assert!(
-                json.contains(expected),
-                "Expected {expected} in {json}"
-            );
+            assert!(json.contains(expected), "Expected {expected} in {json}");
             let parsed: TaskState = serde_json::from_str(&json).unwrap();
             assert_eq!(parsed, state);
         }

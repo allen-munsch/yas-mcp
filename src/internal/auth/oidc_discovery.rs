@@ -122,14 +122,15 @@ impl OidcDiscovery {
             ));
         }
 
-        let doc: OidcDiscovery = response
-            .json()
-            .await
-            .with_context(|| format!("Failed to parse OIDC discovery JSON from {well_known_url}"))?;
+        let doc: OidcDiscovery = response.json().await.with_context(|| {
+            format!("Failed to parse OIDC discovery JSON from {well_known_url}")
+        })?;
 
         // Validate required fields
         if doc.issuer.is_empty() {
-            return Err(anyhow::anyhow!("OIDC discovery document missing 'issuer' field"));
+            return Err(anyhow::anyhow!(
+                "OIDC discovery document missing 'issuer' field"
+            ));
         }
         if doc.authorization_endpoint.is_empty() {
             return Err(anyhow::anyhow!(
@@ -137,10 +138,14 @@ impl OidcDiscovery {
             ));
         }
         if doc.token_endpoint.is_empty() {
-            return Err(anyhow::anyhow!("OIDC discovery document missing 'token_endpoint' field"));
+            return Err(anyhow::anyhow!(
+                "OIDC discovery document missing 'token_endpoint' field"
+            ));
         }
         if doc.jwks_uri.is_empty() {
-            return Err(anyhow::anyhow!("OIDC discovery document missing 'jwks_uri' field"));
+            return Err(anyhow::anyhow!(
+                "OIDC discovery document missing 'jwks_uri' field"
+            ));
         }
 
         info!(
@@ -164,10 +169,7 @@ impl OidcDiscovery {
     }
 
     /// Fetch and cache the discovery document
-    pub async fn fetch_cached(
-        issuer_url: &str,
-        cache_ttl: Duration,
-    ) -> Result<CachedDiscovery> {
+    pub async fn fetch_cached(issuer_url: &str, cache_ttl: Duration) -> Result<CachedDiscovery> {
         let document = Self::fetch(issuer_url).await?;
         Ok(CachedDiscovery {
             document,
@@ -248,10 +250,7 @@ mod tests {
     #[test]
     fn test_build_well_known_url_with_path() {
         let url = build_well_known_url("http://dex:5556/dex");
-        assert_eq!(
-            url,
-            "http://dex:5556/dex/.well-known/openid-configuration"
-        );
+        assert_eq!(url, "http://dex:5556/dex/.well-known/openid-configuration");
     }
 
     #[test]
@@ -326,10 +325,7 @@ mod tests {
             jwks_uri: "https://example.com/jwks".into(),
             scopes_supported: vec![],
             response_types_supported: vec![],
-            grant_types_supported: vec![
-                "authorization_code".into(),
-                "refresh_token".into(),
-            ],
+            grant_types_supported: vec!["authorization_code".into(), "refresh_token".into()],
             subject_types_supported: vec![],
             id_token_signing_alg_values_supported: vec![],
             token_endpoint_auth_methods_supported: vec![],

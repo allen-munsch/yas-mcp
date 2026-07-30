@@ -5,7 +5,7 @@
 //! - Tool registration
 //! - MCP request routing
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use yas_mcp::internal::parser::SwaggerParser;
 use yas_mcp::internal::parser::adjuster::Adjuster;
 use yas_mcp::internal::parser::types::Parser;
@@ -14,9 +14,7 @@ fn bench_parse_todo_spec(c: &mut Criterion) {
     c.bench_function("parse todo-app openapi", |b| {
         b.iter(|| {
             let mut parser = SwaggerParser::new(Adjuster::new());
-            parser
-                .init("examples/todo-app/openapi.yaml", None)
-                .unwrap();
+            parser.init("examples/todo-app/openapi.yaml", None).unwrap();
             let tools = parser.get_route_tools().len();
             black_box(tools)
         })
@@ -48,10 +46,10 @@ fn bench_parse_prefect_large(c: &mut Criterion) {
 }
 
 fn bench_tool_registration(c: &mut Criterion) {
+    use rmcp::model::Tool;
     use std::sync::Arc;
     use yas_mcp::internal::mcp::registry::{RegisteredTool, ToolRegistry};
     use yas_mcp::internal::server::tool::handler::ToolExecutor;
-    use rmcp::model::Tool;
 
     c.bench_function("register 50 tools", |b| {
         b.iter(|| {
@@ -91,10 +89,10 @@ fn bench_tool_registration(c: &mut Criterion) {
 }
 
 fn bench_tool_lookup(c: &mut Criterion) {
+    use rmcp::model::Tool;
     use std::sync::Arc;
     use yas_mcp::internal::mcp::registry::{RegisteredTool, ToolRegistry};
     use yas_mcp::internal::server::tool::handler::ToolExecutor;
-    use rmcp::model::Tool;
 
     let registry = Arc::new(ToolRegistry::new());
     for i in 0..100 {

@@ -1,8 +1,8 @@
 // src/internal/server/tool/handler.rs
 
 use crate::internal::mcp::registry::{RegisteredTool, ToolRegistry};
-use anyhow::{anyhow, Result};
-use rmcp::model::{Annotated, CallToolRequest, CallToolResult, RawContent, RawTextContent, Tool};
+use anyhow::{Result, anyhow};
+use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock, TextContent, Tool};
 use serde_json::Map;
 use std::sync::Arc;
 use tracing::debug;
@@ -12,7 +12,7 @@ use crate::internal::requester::RouteExecutor;
 // Simplify the ToolExecutor to avoid lifetime issues
 pub type ToolExecutor = Arc<
     dyn Fn(
-            CallToolRequest,
+            CallToolRequestParams,
         ) -> std::pin::Pin<
             Box<dyn std::future::Future<Output = Result<CallToolResult, anyhow::Error>> + Send>,
         > + Send
@@ -60,7 +60,7 @@ impl ToolHandler {
         let tool_name = tool_name.to_string();
         let auth_enabled = self.auth_enabled;
 
-        Arc::new(move |request: CallToolRequest| {
+        Arc::new(move |request: CallToolRequestParams| {
             let tool_name = tool_name.clone();
             let executor = executor.clone(); // Clone the async executor
 
@@ -82,7 +82,7 @@ impl ToolHandler {
 
                 // Execute the tool request (with timing for metrics)
                 let start = std::time::Instant::now();
-                let params = if let Some(args) = &request.params.arguments {
+                let params = if let Some(args) = &request.arguments {
                     Self::convert_arguments_to_json(args)
                 } else {
                     "{}".to_string()
@@ -93,50 +93,40 @@ impl ToolHandler {
                 })?;
 
                 let elapsed = start.elapsed().as_secs_f64();
-                tracing::info!(elapsed_secs = elapsed, status = response.status_code, "Tool call completed");
+                tracing::info!(
+                    elapsed_secs = elapsed,
+                    status = response.status_code,
+                    "Tool call completed"
+                );
 
                 // Record metrics
                 let method = "POST";
-                let tool_short = tool_name.rsplit_once('_').map(|(_, n)| n).unwrap_or(&tool_name);
+                let tool_short = tool_name
+                    .rsplit_once('_')
+                    .map(|(_, n)| n)
+                    .unwrap_or(&tool_name);
                 crate::internal::telemetry::Metrics::get()
                     .record_tool_call(tool_short, method, elapsed);
 
                 // Handle error responses
                 if response.status_code >= 400 {
                     let error_message = String::from_utf8_lossy(&response.body).to_string();
-                    crate::internal::telemetry::Metrics::get()
-                        .record_tool_error(tool_short, method, response.status_code);
-                    return Ok(CallToolResult {
-                        content: vec![Annotated {
-                            annotations: None,
-                            raw: RawContent::Text(RawTextContent {
-                                text: error_message,
-                                meta: None,
-                            }),
-                        }],
-                        is_error: Some(true),
-                        meta: None,
-                        structured_content: None,
-                    });
+                    crate::internal::telemetry::Metrics::get().record_tool_error(
+                        tool_short,
+                        method,
+                        response.status_code,
+                    );
+                    return Ok(CallToolResult::error(vec![ContentBlock::Text(
+                        TextContent::new(error_message),
+                    )]));
                 }
 
                 // Convert successful response to text content
                 let text_content = String::from_utf8_lossy(&response.body).to_string();
 
-                let content = Annotated {
-                    annotations: None,
-                    raw: RawContent::Text(RawTextContent {
-                        text: text_content,
-                        meta: None,
-                    }),
-                };
-
-                Ok(CallToolResult {
-                    content: vec![content],
-                    is_error: Some(false),
-                    meta: None,
-                    structured_content: None,
-                })
+                Ok(CallToolResult::success(vec![ContentBlock::Text(
+                    TextContent::new(text_content),
+                )]))
             })
         })
     }
@@ -154,8 +144,8 @@ impl ToolHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::internal::requester::types::RouteExecutor;
     use crate::internal::requester::http_requester::HttpResponse;
+    use crate::internal::requester::types::RouteExecutor;
     use std::collections::HashMap;
 
     // Ensure metrics are initialized before any handler test
@@ -163,10 +153,7 @@ mod tests {
         let _ = crate::internal::telemetry::Metrics::init("test");
     }
 
-    fn make_test_executor(
-        status: u16,
-        body: &'static str,
-    ) -> RouteExecutor {
+    fn make_test_executor(status: u16, body: &'static str) -> RouteExecutor {
         Arc::new(move |_params: &str| {
             let body = body.as_bytes().to_vec();
             Box::pin(async move {
@@ -208,16 +195,8 @@ mod tests {
         let executor = make_test_executor(200, "ok");
         let handler_fn = handler.create_handler("test_tool", executor);
 
-        let tool = rmcp::model::Tool {
-            name: "test_tool".into(),
-            title: Some("Test Tool".into()),
-            description: Some("A test".into()),
-            input_schema: Arc::new(serde_json::Map::new()),
-            output_schema: None,
-            annotations: None,
-            icons: None,
-            meta: None,
-        };
+        let tool = rmcp::model::Tool::new("test_tool", "A test", Arc::new(serde_json::Map::new()))
+            .with_title("Test Tool");
 
         handler.register_tool("test_tool", tool, handler_fn);
 
@@ -234,16 +213,11 @@ mod tests {
         for i in 0..5 {
             let name = format!("tool_{i}");
             let handler_fn = handler.create_handler(&name, executor.clone());
-            let tool = rmcp::model::Tool {
-                name: name.clone().into(),
-                title: None,
-                description: Some(format!("Tool {i}").into()),
-                input_schema: Arc::new(serde_json::Map::new()),
-                output_schema: None,
-                annotations: None,
-                icons: None,
-                meta: None,
-            };
+            let tool = rmcp::model::Tool::new(
+                name.clone(),
+                format!("Tool {i}"),
+                Arc::new(serde_json::Map::new()),
+            );
             handler.register_tool(&name, tool, handler_fn);
         }
 
@@ -262,21 +236,14 @@ mod tests {
         let mut args = Map::new();
         args.insert("query".into(), serde_json::Value::String("test".into()));
 
-        let request = rmcp::model::CallToolRequest {
-            method: rmcp::model::CallToolRequestMethod,
-            params: rmcp::model::CallToolRequestParam {
-                name: "my_tool".into(),
-                arguments: Some(args),
-            },
-            extensions: Default::default(),
-        };
+        let request = rmcp::model::CallToolRequestParams::new("my_tool").with_arguments(args);
 
         let result = handler_fn(request).await.unwrap();
         assert_eq!(result.is_error, Some(false));
         assert!(!result.content.is_empty());
 
         // Check the text content
-        if let rmcp::model::RawContent::Text(text) = &result.content[0].raw {
+        if let rmcp::model::ContentBlock::Text(text) = &result.content[0] {
             assert!(text.text.contains("hello"));
         }
     }
@@ -288,14 +255,7 @@ mod tests {
         let executor = make_test_executor(404, "not found");
         let handler_fn = handler.create_handler("failing_tool", executor);
 
-        let request = rmcp::model::CallToolRequest {
-            method: rmcp::model::CallToolRequestMethod,
-            params: rmcp::model::CallToolRequestParam {
-                name: "failing_tool".into(),
-                arguments: None,
-            },
-            extensions: Default::default(),
-        };
+        let request = rmcp::model::CallToolRequestParams::new("failing_tool");
 
         let result = handler_fn(request).await.unwrap();
         assert_eq!(result.is_error, Some(true));

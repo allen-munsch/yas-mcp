@@ -92,10 +92,7 @@ impl AgentCardGenerator {
 
         AgentSkill {
             id: tool.name.to_string(),
-            name: tool
-                .title
-                .clone()
-                .unwrap_or_else(|| tool.name.to_string()),
+            name: tool.title.clone().unwrap_or_else(|| tool.name.to_string()),
             description: Some(route.description.clone()),
             tags,
             examples,
@@ -214,11 +211,10 @@ mod tests {
     fn make_test_registry() -> (Arc<ToolRegistry>, Vec<RouteConfig>) {
         let registry = Arc::new(ToolRegistry::new());
 
-        let tool = Tool {
-            name: "get_users".into(),
-            title: Some("List Users".into()),
-            description: Some("Get all users".into()),
-            input_schema: Arc::new({
+        let tool = Tool::new(
+            "get_users",
+            "Get all users",
+            Arc::new({
                 let mut map = serde_json::Map::new();
                 map.insert("type".into(), serde_json::json!("object"));
                 map.insert(
@@ -230,22 +226,11 @@ mod tests {
                 map.insert("required".into(), serde_json::json!(["page"]));
                 map
             }),
-            output_schema: None,
-            annotations: None,
-            icons: None,
-            meta: None,
-        };
+        )
+        .with_title("List Users");
 
-        let executor: crate::internal::server::tool::handler::ToolExecutor = Arc::new(|_req| {
-            Box::pin(async {
-                Ok(rmcp::model::CallToolResult {
-                    content: vec![],
-                    is_error: Some(false),
-                    meta: None,
-                    structured_content: None,
-                })
-            })
-        });
+        let executor: crate::internal::server::tool::handler::ToolExecutor =
+            Arc::new(|_req| Box::pin(async { Ok(rmcp::model::CallToolResult::success(vec![])) }));
 
         registry.register(
             "get_users".into(),
@@ -272,7 +257,10 @@ mod tests {
     #[test]
     fn test_extract_tags() {
         let tags = AgentCardGenerator::extract_tags("/users/{userId}/posts", "POST");
-        assert!(!tags.contains(&"read".to_string()), "POST should not have 'read' tag");
+        assert!(
+            !tags.contains(&"read".to_string()),
+            "POST should not have 'read' tag"
+        );
         assert!(tags.contains(&"create".to_string()));
         assert!(tags.contains(&"users".to_string()));
         assert!(tags.contains(&"userId".to_string()));
@@ -329,8 +317,8 @@ mod tests {
 
     #[test]
     fn test_generate_examples() {
-        use std::sync::Arc;
         use serde_json::json;
+        use std::sync::Arc;
 
         let input_schema = Arc::new({
             let mut map = serde_json::Map::new();

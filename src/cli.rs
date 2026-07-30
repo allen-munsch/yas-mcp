@@ -139,12 +139,13 @@ pub fn parse_config(matches: &clap::ArgMatches) -> anyhow::Result<AppConfig> {
     #[cfg(feature = "record-replay")]
     let recordings_dir = matches.get_one::<String>("recordings-dir").cloned();
     let config_arg = matches.get_one::<String>("config").map(|s| s.as_str());
-    
+
     // Try to load from config file first, fall back to CLI args
     match AppConfig::load(config_arg) {
         Ok(mut config) => {
             // Override with CLI values (only if explicitly provided, not defaults)
-            if matches.value_source("swagger-file") == Some(clap::parser::ValueSource::CommandLine) {
+            if matches.value_source("swagger-file") == Some(clap::parser::ValueSource::CommandLine)
+            {
                 config.swagger_file = swagger_file;
             }
             if adjustments_file.is_some() {
@@ -235,8 +236,10 @@ mod tests {
         let cmd = build_cli();
         let matches = cmd.try_get_matches_from(vec![
             "yas-mcp",
-            "--swagger-file", "test.yaml",
-            "--mode", "stdio",
+            "--swagger-file",
+            "test.yaml",
+            "--mode",
+            "stdio",
         ]);
         assert!(matches.is_ok());
     }
@@ -246,9 +249,12 @@ mod tests {
         let cmd = build_cli();
         let matches = cmd.try_get_matches_from(vec![
             "yas-mcp",
-            "--swagger-file", "test.yaml",
-            "--mode", "http",
-            "--port", "8080",
+            "--swagger-file",
+            "test.yaml",
+            "--mode",
+            "http",
+            "--port",
+            "8080",
         ]);
         assert!(matches.is_ok());
         let m = matches.unwrap();
@@ -276,13 +282,20 @@ mod tests {
         let cmd = build_cli();
         let matches = cmd.try_get_matches_from(vec![
             "yas-mcp",
-            "--swagger-file", "spec.yaml",
-            "--adjustments-file", "adj.yaml",
-            "--config", "cfg.yaml",
-            "--mode", "http",
-            "--host", "0.0.0.0",
-            "--port", "3001",
-            "--endpoint", "http://api:8080",
+            "--swagger-file",
+            "spec.yaml",
+            "--adjustments-file",
+            "adj.yaml",
+            "--config",
+            "cfg.yaml",
+            "--mode",
+            "http",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "3001",
+            "--endpoint",
+            "http://api:8080",
         ]);
         assert!(matches.is_ok());
         let m = matches.unwrap();

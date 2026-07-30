@@ -24,7 +24,7 @@
 //! first-class JSON Schema fidelity in the generated MCP tools.
 
 use anyhow::Result;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use tracing::{debug, info, warn};
 
 /// Detected specification version
@@ -38,10 +38,10 @@ pub enum SpecVersion {
 
 /// Detect the specification version from the raw JSON/YAML value
 pub fn detect_version(value: &Value) -> SpecVersion {
-    if let Some(swagger) = value.get("swagger").and_then(|v| v.as_str()) {
-        if swagger.starts_with("2.") {
-            return SpecVersion::Swagger2;
-        }
+    if let Some(swagger) = value.get("swagger").and_then(|v| v.as_str())
+        && swagger.starts_with("2.")
+    {
+        return SpecVersion::Swagger2;
     }
 
     if let Some(openapi) = value.get("openapi").and_then(|v| v.as_str()) {
@@ -84,7 +84,10 @@ pub fn normalize(value: &Value) -> Result<Value> {
         }
         SpecVersion::Unknown(v) => {
             // Try our best — pass through and let the parser reject if invalid
-            warn!("Unknown spec version '{}' — attempting to parse as OpenAPI 3.0", v);
+            warn!(
+                "Unknown spec version '{}' — attempting to parse as OpenAPI 3.0",
+                v
+            );
             Ok(value.clone())
         }
     }
@@ -122,10 +125,7 @@ fn convert_swagger2_to_openapi3(swagger: &Value) -> Result<Value> {
         if schemes.iter().any(|s| s.as_str() == Some("https")) {
             "https"
         } else {
-            schemes
-                .first()
-                .and_then(|s| s.as_str())
-                .unwrap_or("http")
+            schemes.first().and_then(|s| s.as_str()).unwrap_or("http")
         }
     } else {
         "http"
@@ -280,10 +280,7 @@ fn convert_swagger2_operation(op: &Value, _path: &str) -> Result<Value> {
                 if let Some(params) = val.as_array() {
                     let (query_params, body_param) = split_swagger2_params(params);
                     if !query_params.is_empty() {
-                        new_op.insert(
-                            "parameters".into(),
-                            Value::Array(query_params.clone()),
-                        );
+                        new_op.insert("parameters".into(), Value::Array(query_params.clone()));
                     }
                     if let Some(body) = body_param {
                         let request_body = convert_body_param_to_request_body(&body);
@@ -299,16 +296,15 @@ fn convert_swagger2_operation(op: &Value, _path: &str) -> Result<Value> {
     }
 
     // If operation has `produces`, wrap responses with content types
-    if let Some(produces) = op_obj.get("produces").and_then(|v| v.as_array()) {
-        if let Some(responses) = new_op.get_mut("responses") {
-            if let Some(resp_obj) = responses.as_object_mut() {
-                for (_code, resp) in resp_obj.iter_mut() {
-                    if resp.is_object() && resp.get("content").is_none() {
-                        let content = build_content_for_produces(produces, resp);
-                        if let Some(resp_map) = resp.as_object_mut() {
-                            resp_map.insert("content".into(), content);
-                        }
-                    }
+    if let Some(produces) = op_obj.get("produces").and_then(|v| v.as_array())
+        && let Some(responses) = new_op.get_mut("responses")
+        && let Some(resp_obj) = responses.as_object_mut()
+    {
+        for (_code, resp) in resp_obj.iter_mut() {
+            if resp.is_object() && resp.get("content").is_none() {
+                let content = build_content_for_produces(produces, resp);
+                if let Some(resp_map) = resp.as_object_mut() {
+                    resp_map.insert("content".into(), content);
                 }
             }
         }
@@ -319,9 +315,7 @@ fn convert_swagger2_operation(op: &Value, _path: &str) -> Result<Value> {
 
 /// Split parameters: everything NOT `in: body` stays as parameters,
 /// the `in: body` parameter becomes the request body.
-fn split_swagger2_params(
-    params: &[Value],
-) -> (Vec<Value>, Option<Value>) {
+fn split_swagger2_params(params: &[Value]) -> (Vec<Value>, Option<Value>) {
     let mut query_params = Vec::new();
     let mut body_param = None;
 
@@ -344,7 +338,10 @@ fn split_swagger2_params(
 
 /// Convert a Swagger 2.0 `in: body` parameter to OpenAPI 3.0 requestBody
 fn convert_body_param_to_request_body(body_param: &Value) -> Value {
-    let schema = body_param.get("schema").cloned().unwrap_or(json!({"type": "object"}));
+    let schema = body_param
+        .get("schema")
+        .cloned()
+        .unwrap_or(json!({"type": "object"}));
     let description = body_param
         .get("description")
         .and_then(|v| v.as_str())
@@ -377,19 +374,13 @@ fn build_content_for_produces(produces: &[Value], response: &Value) -> Value {
 
     for mime in produces {
         if let Some(mime_str) = mime.as_str() {
-            content.insert(
-                mime_str.to_string(),
-                json!({"schema": schema}),
-            );
+            content.insert(mime_str.to_string(), json!({"schema": schema}));
         }
     }
 
     // If no produces specified, default to application/json
     if content.is_empty() {
-        content.insert(
-            "application/json".to_string(),
-            json!({"schema": schema}),
-        );
+        content.insert("application/json".to_string(), json!({"schema": schema}));
     }
 
     Value::Object(content)
@@ -420,11 +411,13 @@ fn downgrade_openapi31_to_30(spec: &Value) -> Result<Value> {
         obj.remove("webhooks");
 
         // Walk through the spec and fix `type` arrays (3.1 allows `type: ["string", "null"]`)
-        if let Some(components) = obj.get_mut("components").and_then(|c| c.as_object_mut()) {
-            if let Some(schemas) = components.get_mut("schemas").and_then(|s| s.as_object_mut()) {
-                for (_name, schema) in schemas.iter_mut() {
-                    fix_type_arrays_for_30(schema);
-                }
+        if let Some(components) = obj.get_mut("components").and_then(|c| c.as_object_mut())
+            && let Some(schemas) = components
+                .get_mut("schemas")
+                .and_then(|s| s.as_object_mut())
+        {
+            for (_name, schema) in schemas.iter_mut() {
+                fix_type_arrays_for_30(schema);
             }
         }
 

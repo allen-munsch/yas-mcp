@@ -51,16 +51,15 @@ impl GeminiValidator {
         }
 
         // Rule 4: Output schema must be an Object (fixes your specific CLI error)
-        if let Some(schema) = &tool.output_schema {
-            if let Some(type_val) = schema.get("type") {
-                if type_val != "object" {
-                    result.errors.push(format!(
-                        "Output schema type must be 'object', found '{}'",
-                        type_val
-                    ));
-                    result.is_valid = false;
-                }
-            }
+        if let Some(schema) = &tool.output_schema
+            && let Some(type_val) = schema.get("type")
+            && type_val != "object"
+        {
+            result.errors.push(format!(
+                "Output schema type must be 'object', found '{}'",
+                type_val
+            ));
+            result.is_valid = false;
         }
 
         result

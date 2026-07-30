@@ -68,9 +68,7 @@ impl Default for GrpcConfig {
 
 /// Build a gRPC transport from config.
 ///
-pub fn create_grpc_transport(
-    config: GrpcConfig,
-) -> anyhow::Result<Box<dyn McpTransport>> {
+pub fn create_grpc_transport(config: GrpcConfig) -> anyhow::Result<Box<dyn McpTransport>> {
     crate::internal::transport::grpc_server::GrpcServer::new(config)
         .map(|s| Box::new(s) as Box<dyn McpTransport>)
 }

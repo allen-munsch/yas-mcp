@@ -10,7 +10,7 @@ pub mod wimse;
 // pub mod providers;  // Comment out for now if not implemented
 
 use crate::internal::config::OAuthConfig;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 /// Create provider-specific OAuth2 configuration
 pub fn create_provider_config(config: &OAuthConfig) -> Result<oauth2::OAuth2ProviderConfig> {

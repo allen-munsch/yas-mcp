@@ -2,7 +2,7 @@
 name = "yas-mcp"
 description = "yet another swagger mcp"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 build = "build.rs"  # Add this line for build scripts
 license = "AGPL-3.0-only"
 
@@ -22,14 +22,13 @@ anyhow = "1.0"
 thiserror = "2.0"
 
 # MCP SDK
-rmcp = { version = "0.12.0", features = [
+rmcp = { version = "3.0.1", features = [
     "transport-async-rw", 
     "transport-streamable-http-server",
-    "transport-streamable-http-server-session", 
     "transport-worker",
     "server",
     ] }
-rmcp-macros = "0.9.0"
+rmcp-macros = "3.0.1"
 schemars = "1.1"
 
 # Web/HTTP dependencies
@@ -69,7 +68,7 @@ prost-types = "0.13"
 chrono = { version = "0.4", features = ["serde"] }
 dashmap = "6"
 glob-match = "0.2"
-prometheus = { version = "0.13", features = ["process"] }
+prometheus = { version = "0.14", features = ["process"] }
 jsonwebtoken = "9"
 
 [dev-dependencies]

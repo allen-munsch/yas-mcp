@@ -92,10 +92,7 @@ impl CatalogGenerator {
         _route_configs: &[RouteConfig],
     ) -> AiCatalog {
         let tools = registry.list_metadata();
-        let server_url = format!(
-            "http://{}:{}",
-            config.server.host, config.server.port
-        );
+        let server_url = format!("http://{}:{}", config.server.host, config.server.port);
 
         let mut entries = Vec::new();
 
@@ -185,7 +182,13 @@ impl CatalogGenerator {
 fn slugify(name: &str) -> String {
     name.to_lowercase()
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 
@@ -198,27 +201,10 @@ mod tests {
 
     fn make_test_registry() -> (Arc<ToolRegistry>, Vec<RouteConfig>) {
         let registry = Arc::new(ToolRegistry::new());
-        let tool = rmcp::model::Tool {
-            name: "get_users".into(),
-            title: None,
-            description: Some("Get users".into()),
-            input_schema: Arc::new(serde_json::Map::new()),
-            output_schema: None,
-            annotations: None,
-            icons: None,
-            meta: None,
-        };
+        let tool =
+            rmcp::model::Tool::new("get_users", "Get users", Arc::new(serde_json::Map::new()));
         let executor: crate::internal::server::tool::handler::ToolExecutor =
-            Arc::new(|_| {
-                Box::pin(async {
-                    Ok(rmcp::model::CallToolResult {
-                        content: vec![],
-                        is_error: Some(false),
-                        meta: None,
-                        structured_content: None,
-                    })
-                })
-            });
+            Arc::new(|_| Box::pin(async { Ok(rmcp::model::CallToolResult::success(vec![])) }));
         registry.register(
             "get_users".into(),
             RegisteredTool {
@@ -322,10 +308,12 @@ mod tests {
         let catalog = CatalogGenerator::generate(&config, &registry, &routes);
 
         assert_eq!(catalog.entries.len(), 1);
-        assert!(catalog.entries[0]
-            .description
-            .as_ref()
-            .unwrap()
-            .contains("0 tools"));
+        assert!(
+            catalog.entries[0]
+                .description
+                .as_ref()
+                .unwrap()
+                .contains("0 tools")
+        );
     }
 }

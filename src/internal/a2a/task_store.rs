@@ -124,7 +124,12 @@ impl TaskStore {
 
     /// Cancel a task
     pub fn cancel(&self, id: &str) -> Result<Task, String> {
-        self.transition(id, TaskState::Canceled, Some("Task canceled by client".into()), None)
+        self.transition(
+            id,
+            TaskState::Canceled,
+            Some("Task canceled by client".into()),
+            None,
+        )
     }
 
     /// Mark a task as working
@@ -345,7 +350,9 @@ mod tests {
             "History should contain Failed event"
         );
         assert!(
-            task.history.iter().any(|e| e.message.as_deref() == Some("Task failed: something went wrong")),
+            task.history
+                .iter()
+                .any(|e| e.message.as_deref() == Some("Task failed: something went wrong")),
             "History should contain error message"
         );
     }

@@ -292,9 +292,11 @@ mod tests {
 
         cache.invalidate_tool("get_users");
         assert_eq!(cache.count(), 1);
-        assert!(cache
-            .get(&ResponseCache::cache_key("get_projects", "{}"))
-            .is_some());
+        assert!(
+            cache
+                .get(&ResponseCache::cache_key("get_projects", "{}"))
+                .is_some()
+        );
     }
 
     #[test]

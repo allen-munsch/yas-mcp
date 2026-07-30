@@ -10,15 +10,15 @@ pub mod types;
 pub use types::{Parser, RouteTool};
 
 // Export Adjuster
-pub use adjuster::Adjuster;
 use crate::internal::requester::types::RouteConfig;
+pub use adjuster::Adjuster;
 use anyhow::{Context, Result};
 use openapiv3::{OpenAPI, Parameter, ReferenceOr, Schema, SchemaKind, Type};
 use regex::Regex;
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::io::Read;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 pub struct SwaggerParser {
     doc: Option<OpenAPI>,
@@ -62,10 +62,11 @@ impl SwaggerParser {
     fn ensure_strict_object(value: &mut Value) {
         match value {
             Value::Object(map) => {
-                if let Some(Value::String(t)) = map.get("type") {
-                    if t == "object" && !map.contains_key("properties") {
-                        map.insert("properties".to_string(), serde_json::json!({}));
-                    }
+                if let Some(Value::String(t)) = map.get("type")
+                    && t == "object"
+                    && !map.contains_key("properties")
+                {
+                    map.insert("properties".to_string(), serde_json::json!({}));
                 }
 
                 if let Some(Value::Object(props)) = map.get_mut("properties") {
@@ -154,10 +155,10 @@ impl SwaggerParser {
                     "description": description
                 });
 
-                if !obj.required.is_empty() {
-                    if let Some(map) = json.as_object_mut() {
-                        map.insert("required".to_string(), serde_json::json!(obj.required));
-                    }
+                if !obj.required.is_empty()
+                    && let Some(map) = json.as_object_mut()
+                {
+                    map.insert("required".to_string(), serde_json::json!(obj.required));
                 }
                 json
             }
@@ -268,12 +269,12 @@ impl SwaggerParser {
             ReferenceOr::Reference { .. } => return None,
         };
 
-        if let Some(content) = request_body.content.get("application/json") {
-            if let Some(schema) = &content.schema {
-                let mut json_schema = Self::schema_to_json_schema(schema);
-                Self::ensure_strict_object(&mut json_schema);
-                return Some(json_schema);
-            }
+        if let Some(content) = request_body.content.get("application/json")
+            && let Some(schema) = &content.schema
+        {
+            let mut json_schema = Self::schema_to_json_schema(schema);
+            Self::ensure_strict_object(&mut json_schema);
+            return Some(json_schema);
         }
         None
     }
@@ -333,11 +334,11 @@ impl SwaggerParser {
             }
         }
 
-        if matches!(route.method.as_str(), "POST" | "PUT" | "PATCH") {
-            if let Some(body_schema) = self.get_body_schema(route) {
-                properties.insert("body".to_string(), body_schema);
-                required.push("body".to_string());
-            }
+        if matches!(route.method.as_str(), "POST" | "PUT" | "PATCH")
+            && let Some(body_schema) = self.get_body_schema(route)
+        {
+            properties.insert("body".to_string(), body_schema);
+            required.push("body".to_string());
         }
 
         let mut schema = Map::new();
@@ -377,16 +378,7 @@ impl SwaggerParser {
 
         let final_input = input_val.as_object().unwrap().clone();
 
-        rmcp::model::Tool {
-            name: tool_name.into(),
-            title: None,
-            description: Some(description.into()),
-            input_schema: final_input.into(),
-            output_schema: None,
-            annotations: None,
-            icons: None,
-            meta: None,
-        }
+        rmcp::model::Tool::new(tool_name, description, Arc::new(final_input))
     }
 }
 
@@ -610,10 +602,12 @@ mod tests {
 
         let result = SwaggerParser::schema_to_json_schema(&schema);
         assert_eq!(result["type"], "string");
-        assert!(result["description"]
-            .as_str()
-            .unwrap()
-            .contains("string field"));
+        assert!(
+            result["description"]
+                .as_str()
+                .unwrap()
+                .contains("string field")
+        );
     }
 
     #[test]
@@ -677,16 +671,17 @@ mod tests {
 
         let tools = parser.get_route_tools();
         // Petstore has 5 operations: list, create, show, update, delete
-        assert!(tools.len() >= 3, "Expected at least 3 tools, got {}", tools.len());
+        assert!(
+            tools.len() >= 3,
+            "Expected at least 3 tools, got {}",
+            tools.len()
+        );
     }
 
     #[test]
     fn test_parse_with_adjustments() {
         let mut parser = SwaggerParser::new(Adjuster::new());
-        let result = parser.init(
-            "examples/petstore.yaml",
-            Some("adjustments.yaml"),
-        );
+        let result = parser.init("examples/petstore.yaml", Some("adjustments.yaml"));
         assert!(result.is_ok());
 
         let tools = parser.get_route_tools();

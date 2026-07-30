@@ -7,10 +7,10 @@
 //! - `/a2a/tasks/cancel` — Task cancellation
 
 use axum::{
+    Json,
     extract::{Query, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
 };
 use serde::Deserialize;
 use tracing::info;
@@ -35,7 +35,8 @@ pub struct A2aState {
 /// GET /.well-known/agent-card.json
 pub async fn agent_card_handler(State(state): State<A2aState>) -> impl IntoResponse {
     let tools = state.tool_registry.list_metadata();
-    let card = AgentCardGenerator::generate(&state.config, &state.tool_registry, &state.route_configs);
+    let card =
+        AgentCardGenerator::generate(&state.config, &state.tool_registry, &state.route_configs);
     let serialized = serde_json::to_value(&card).unwrap_or_default();
 
     info!(
@@ -57,7 +58,9 @@ pub async fn tasks_send_handler(
     info!("A2A tasks/send: task_id={}", request.id);
 
     // Create a task in the store
-    let task = state.task_store.create(&request.session_id, &request.message);
+    let task = state
+        .task_store
+        .create(&request.session_id, &request.message);
 
     // Transition to working
     if let Err(e) = state.task_store.start_working(&task.id) {
@@ -80,16 +83,14 @@ pub async fn tasks_send_handler(
     let params_bg = params.clone();
     tokio::spawn(async move {
         match skill_bg {
-            Some(skill) => {
-                match execute_tool(&state_bg, &task_id, &skill, &params_bg).await {
-                    Ok(artifacts) => {
-                        let _ = state_bg.task_store.complete(&task_id, artifacts);
-                    }
-                    Err(e) => {
-                        let _ = state_bg.task_store.fail(&task_id, &e);
-                    }
+            Some(skill) => match execute_tool(&state_bg, &task_id, &skill, &params_bg).await {
+                Ok(artifacts) => {
+                    let _ = state_bg.task_store.complete(&task_id, artifacts);
                 }
-            }
+                Err(e) => {
+                    let _ = state_bg.task_store.fail(&task_id, &e);
+                }
+            },
             None => {
                 let _ = state_bg.task_store.fail(&task_id, "No skill specified");
             }
@@ -106,7 +107,10 @@ pub async fn tasks_send_handler(
         artifacts: current_task.artifacts.clone(),
     };
 
-    (StatusCode::OK, Json(serde_json::to_value(response).unwrap_or_default()))
+    (
+        StatusCode::OK,
+        Json(serde_json::to_value(response).unwrap_or_default()),
+    )
 }
 
 /// POST /a2a/tasks/sendSubscribe (streaming via SSE)
@@ -117,14 +121,20 @@ pub async fn tasks_send_subscribe_handler(
     info!("A2A tasks/sendSubscribe (SSE): task_id={}", request.id);
 
     // Create task and event channel
-    let task = state.task_store.create(&request.session_id, &request.message);
+    let task = state
+        .task_store
+        .create(&request.session_id, &request.message);
     let task_id = task.id.clone();
     let (tx, rx) = crate::internal::a2a::sse::task_event_channel(32);
 
     // Send "submitted" event
     crate::internal::a2a::sse::send_event(
-        &tx, &task_id, TaskState::Submitted,
-        Some("Task received"), None, false,
+        &tx,
+        &task_id,
+        TaskState::Submitted,
+        Some("Task received"),
+        None,
+        false,
     )
     .await;
 
@@ -132,8 +142,12 @@ pub async fn tasks_send_subscribe_handler(
 
     // Send "working" event
     crate::internal::a2a::sse::send_event(
-        &tx, &task_id, TaskState::Working,
-        Some("Executing tool"), None, false,
+        &tx,
+        &task_id,
+        TaskState::Working,
+        Some("Executing tool"),
+        None,
+        false,
     )
     .await;
 
@@ -145,32 +159,45 @@ pub async fn tasks_send_subscribe_handler(
 
     tokio::spawn(async move {
         match skill_name {
-            Some(skill) => {
-                match execute_tool(&state_clone, &task_id, &skill, &params).await {
-                    Ok(artifacts) => {
-                        state_clone.task_store.complete(&task_id, artifacts.clone()).ok();
-                        crate::internal::a2a::sse::send_event(
-                            &tx_clone, &task_id, TaskState::Completed,
-                            Some("Task completed"), Some(artifacts), true,
-                        )
-                        .await;
-                    }
-                    Err(e) => {
-                        state_clone.task_store.fail(&task_id, &e).ok();
-                        crate::internal::a2a::sse::send_event(
-                            &tx_clone, &task_id, TaskState::Failed,
-                            Some(&e), None, true,
-                        )
-                        .await;
-                    }
+            Some(skill) => match execute_tool(&state_clone, &task_id, &skill, &params).await {
+                Ok(artifacts) => {
+                    state_clone
+                        .task_store
+                        .complete(&task_id, artifacts.clone())
+                        .ok();
+                    crate::internal::a2a::sse::send_event(
+                        &tx_clone,
+                        &task_id,
+                        TaskState::Completed,
+                        Some("Task completed"),
+                        Some(artifacts),
+                        true,
+                    )
+                    .await;
                 }
-            }
+                Err(e) => {
+                    state_clone.task_store.fail(&task_id, &e).ok();
+                    crate::internal::a2a::sse::send_event(
+                        &tx_clone,
+                        &task_id,
+                        TaskState::Failed,
+                        Some(&e),
+                        None,
+                        true,
+                    )
+                    .await;
+                }
+            },
             None => {
                 let err = "No skill specified in message".to_string();
                 state_clone.task_store.fail(&task_id, &err).ok();
                 crate::internal::a2a::sse::send_event(
-                    &tx_clone, &task_id, TaskState::Failed,
-                    Some(&err), None, true,
+                    &tx_clone,
+                    &task_id,
+                    TaskState::Failed,
+                    Some(&err),
+                    None,
+                    true,
                 )
                 .await;
             }
@@ -232,10 +259,7 @@ pub async fn tasks_cancel_handler(
             });
             (StatusCode::OK, Json(response))
         }
-        Err(e) => (
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({"error": e})),
-        ),
+        Err(e) => (StatusCode::NOT_FOUND, Json(serde_json::json!({"error": e}))),
     }
 }
 
@@ -252,10 +276,10 @@ fn extract_skill_name(message: &TaskMessage) -> Option<String> {
             }
             Part::Text { text } => {
                 // Fallback: try to parse text as JSON to find skill name
-                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(text) {
-                    if let Some(skill) = parsed.get("skill").and_then(|s| s.as_str()) {
-                        return Some(skill.to_string());
-                    }
+                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(text)
+                    && let Some(skill) = parsed.get("skill").and_then(|s| s.as_str())
+                {
+                    return Some(skill.to_string());
                 }
                 // If text is just a simple string, treat it as the skill name
                 if !text.contains(' ') && !text.contains('\n') {
@@ -285,10 +309,10 @@ fn extract_parameters(message: &TaskMessage) -> serde_json::Value {
                 return params;
             }
             Part::Text { text } => {
-                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(text) {
-                    if let Some(params) = parsed.get("parameters") {
-                        return params.clone();
-                    }
+                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(text)
+                    && let Some(params) = parsed.get("parameters")
+                {
+                    return params.clone();
                 }
             }
             _ => {}
@@ -309,19 +333,14 @@ async fn execute_tool(
         .get(skill_name)
         .ok_or_else(|| format!("Skill '{}' not found in tool registry", skill_name))?;
 
-    // Build an MCP CallToolRequest
-    let call_request = rmcp::model::CallToolRequest {
-        method: rmcp::model::CallToolRequestMethod,
-        params: rmcp::model::CallToolRequestParam {
-            name: skill_name.to_string().into(),
-            arguments: params.as_object().map(|o| {
-                o.iter()
-                    .map(|(k, v)| (k.clone(), v.clone()))
-                    .collect()
-            }),
-        },
-        extensions: Default::default(),
-    };
+    // Build an MCP CallToolRequestParams
+    let mut call_request = rmcp::model::CallToolRequestParams::new(skill_name.to_string());
+    if let Some(args) = params
+        .as_object()
+        .map(|o| o.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+    {
+        call_request = call_request.with_arguments(args);
+    }
 
     // Execute via the tool's executor (same code path as MCP tools/call)
     match (tool.executor)(call_request).await {
@@ -334,8 +353,8 @@ async fn execute_tool(
                 parts: result
                     .content
                     .iter()
-                    .map(|c| match &c.raw {
-                        rmcp::model::RawContent::Text(t) => Part::Text {
+                    .map(|c| match c {
+                        rmcp::model::ContentBlock::Text(t) => Part::Text {
                             text: t.text.clone(),
                         },
                         _ => Part::Text {

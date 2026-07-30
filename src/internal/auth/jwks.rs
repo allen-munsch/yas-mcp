@@ -10,9 +10,9 @@
 //! 3. For each JWT, find the matching key by `kid` header, verify signature
 //! 4. Validate standard claims: `iss`, `aud`, `exp`, `nbf`, `iat`
 
-use anyhow::{anyhow, Context, Result};
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
+use anyhow::{Context, Result, anyhow};
+use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::RwLock;
@@ -226,8 +226,7 @@ impl JwksValidator {
         }
 
         // Decode the JWT header to get the key ID
-        let header = decode_header(token)
-            .with_context(|| "Failed to decode JWT header")?;
+        let header = decode_header(token).with_context(|| "Failed to decode JWT header")?;
 
         let kid = header.kid.as_deref();
 
@@ -247,7 +246,10 @@ impl JwksValidator {
             anyhow!(
                 "No JWK found with kid '{}' (available: {:?})",
                 kid.unwrap_or("none"),
-                jwks.keys.iter().filter_map(|k| k.kid.as_deref()).collect::<Vec<_>>()
+                jwks.keys
+                    .iter()
+                    .filter_map(|k| k.kid.as_deref())
+                    .collect::<Vec<_>>()
             )
         })?;
 
@@ -270,21 +272,38 @@ impl JwksValidator {
         );
 
         Ok(JwtClaims {
-            subject: token_data.claims.get("sub").and_then(|v| v.as_str()).map(String::from),
-            issuer: token_data.claims.get("iss").and_then(|v| v.as_str()).map(String::from),
+            subject: token_data
+                .claims
+                .get("sub")
+                .and_then(|v| v.as_str())
+                .map(String::from),
+            issuer: token_data
+                .claims
+                .get("iss")
+                .and_then(|v| v.as_str())
+                .map(String::from),
             audience: token_data
                 .claims
                 .get("aud")
                 .map(|v| match v {
                     serde_json::Value::String(s) => vec![s.clone()],
-                    serde_json::Value::Array(arr) => {
-                        arr.iter().filter_map(|v| v.as_str().map(String::from)).collect()
-                    }
+                    serde_json::Value::Array(arr) => arr
+                        .iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect(),
                     _ => vec![],
                 })
                 .unwrap_or_default(),
-            email: token_data.claims.get("email").and_then(|v| v.as_str()).map(String::from),
-            name: token_data.claims.get("name").and_then(|v| v.as_str()).map(String::from),
+            email: token_data
+                .claims
+                .get("email")
+                .and_then(|v| v.as_str())
+                .map(String::from),
+            name: token_data
+                .claims
+                .get("name")
+                .and_then(|v| v.as_str())
+                .map(String::from),
             raw: token_data.claims,
         })
     }
@@ -331,32 +350,29 @@ pub struct JwtClaims {
 /// Extract cache TTL from HTTP response headers
 fn extract_ttl_from_response(response: &reqwest::Response) -> Duration {
     // Try Cache-Control: max-age=N
-    if let Some(cache_control) = response.headers().get("cache-control") {
-        if let Ok(value) = cache_control.to_str() {
-            for part in value.split(',') {
-                let part = part.trim();
-                if let Some(age_str) = part.strip_prefix("max-age=") {
-                    if let Ok(age) = age_str.parse::<u64>() {
-                        return Duration::from_secs(age);
-                    }
-                }
+    if let Some(cache_control) = response.headers().get("cache-control")
+        && let Ok(value) = cache_control.to_str()
+    {
+        for part in value.split(',') {
+            let part = part.trim();
+            if let Some(age_str) = part.strip_prefix("max-age=")
+                && let Ok(age) = age_str.parse::<u64>()
+            {
+                return Duration::from_secs(age);
             }
         }
     }
 
     // Try Expires header
-    if let Some(expires) = response.headers().get("expires") {
-        if let Ok(value) = expires.to_str() {
-            if let Ok(expiry_time) =
-                chrono::DateTime::parse_from_rfc2822(value)
-            {
-                let now = chrono::Utc::now();
-                let duration = expiry_time.with_timezone(&chrono::Utc) - now;
-                let secs = duration.num_seconds();
-                if secs > 0 {
-                    return Duration::from_secs(secs as u64);
-                }
-            }
+    if let Some(expires) = response.headers().get("expires")
+        && let Ok(value) = expires.to_str()
+        && let Ok(expiry_time) = chrono::DateTime::parse_from_rfc2822(value)
+    {
+        let now = chrono::Utc::now();
+        let duration = expiry_time.with_timezone(&chrono::Utc) - now;
+        let secs = duration.num_seconds();
+        if secs > 0 {
+            return Duration::from_secs(secs as u64);
         }
     }
 
@@ -522,6 +538,12 @@ mod tests {
 
         let result = jwk.to_decoding_key();
         assert!(result.is_err());
-        assert!(result.err().unwrap().to_string().contains("Unsupported JWK key type"));
+        assert!(
+            result
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("Unsupported JWK key type")
+        );
     }
 }

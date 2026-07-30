@@ -29,7 +29,7 @@ impl Default for SecretStore {
         let mut store = Self {
             resolvers: HashMap::new(),
         };
-        store.register(Arc::new(EnvResolver));
+        store.register(Arc::new(EnvResolver::new()));
         store.register(Arc::new(FileResolver));
         store.register(Arc::new(LiteralResolver));
         store
@@ -89,11 +89,7 @@ impl SecretStore {
             value = extract_json_key(&value, key)?;
         }
 
-        debug!(
-            "Resolved secret '{}' via {} resolver",
-            raw,
-            resolver.name()
-        );
+        debug!("Resolved secret '{}' via {} resolver", raw, resolver.name());
 
         Ok(value)
     }
@@ -129,10 +125,12 @@ impl SecretStore {
 /// For backends like Vault that return `{"data": {"api_key": "sk-..."}}`,
 /// you can reference `vault://secret/data/app#data.api_key`.
 fn extract_json_key(json_str: &str, key: &str) -> Result<String> {
-    let value: serde_json::Value =
-        serde_json::from_str(json_str).map_err(|e| {
-            anyhow::anyhow!("Secret backend returned non-JSON but a key was requested: {}", e)
-        })?;
+    let value: serde_json::Value = serde_json::from_str(json_str).map_err(|e| {
+        anyhow::anyhow!(
+            "Secret backend returned non-JSON but a key was requested: {}",
+            e
+        )
+    })?;
 
     // Support nested keys like "data.api_key"
     let mut current = &value;
@@ -158,13 +156,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_resolve_env_value() {
-        std::env::set_var("TEST_STORE_VAR", "from-env-456");
-        let store = SecretStore::default();
+        let mut store = SecretStore::empty();
+        let mut map = HashMap::new();
+        map.insert("TEST_STORE_VAR".into(), "from-env-456".into());
+        store.register(Arc::new(EnvResolver::with_map(map)));
 
         let value = store.resolve_value("env://TEST_STORE_VAR").await.unwrap();
         assert_eq!(value, "from-env-456");
-
-        std::env::remove_var("TEST_STORE_VAR");
     }
 
     #[tokio::test]
@@ -183,18 +181,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_resolve_map() {
-        std::env::set_var("TEST_MAP_PASS", "s3cr3t");
-        let store = SecretStore::default();
-
+        let mut store = SecretStore::empty();
         let mut map = HashMap::new();
-        map.insert("username".into(), "admin".into()); // plain
-        map.insert("password".into(), "env://TEST_MAP_PASS".into()); // secret ref
+        map.insert("TEST_MAP_PASS".into(), "s3cr3t".into());
+        store.register(Arc::new(EnvResolver::with_map(map)));
 
-        let resolved = store.resolve_map(&map).await.unwrap();
+        let mut input = HashMap::new();
+        input.insert("username".into(), "admin".into()); // plain
+        input.insert("password".into(), "env://TEST_MAP_PASS".into()); // secret ref
+
+        let resolved = store.resolve_map(&input).await.unwrap();
         assert_eq!(resolved["username"], "admin");
         assert_eq!(resolved["password"], "s3cr3t");
-
-        std::env::remove_var("TEST_MAP_PASS");
     }
 
     #[test]
@@ -236,7 +234,7 @@ mod tests {
     #[test]
     fn test_register_custom() {
         let mut store = SecretStore::empty();
-        store.register(Arc::new(EnvResolver));
+        store.register(Arc::new(EnvResolver::new()));
         store.register(Arc::new(FileResolver));
         assert_eq!(store.schemes().len(), 2);
         assert!(store.has_scheme("env"));

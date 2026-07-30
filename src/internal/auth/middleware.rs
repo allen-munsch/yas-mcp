@@ -113,10 +113,7 @@ impl AuthMiddleware {
                     );
                     return Err((
                         StatusCode::UNAUTHORIZED,
-                        format!(
-                            "Authentication required by '{}'",
-                            provider.provider_type()
-                        ),
+                        format!("Authentication required by '{}'", provider.provider_type()),
                     ));
                 }
                 Err(e) => {
@@ -156,7 +153,7 @@ mod tests {
     use super::*;
     use crate::internal::auth::provider::AuthProvider;
     use anyhow::Result;
-    use axum::{body::Body, http::Request, middleware, routing::get, Router};
+    use axum::{Router, body::Body, http::Request, middleware, routing::get};
     use tower::ServiceExt;
 
     /// A test provider that matches specific paths
@@ -167,10 +164,7 @@ mod tests {
             "test"
         }
 
-        fn authenticate(
-            &self,
-            headers: &HashMap<String, String>,
-        ) -> Result<Option<AuthIdentity>> {
+        fn authenticate(&self, headers: &HashMap<String, String>) -> Result<Option<AuthIdentity>> {
             if headers.get("authorization").map(|s| s.as_str()) == Some("Bearer valid") {
                 Ok(Some(AuthIdentity {
                     subject: "test-user".into(),
@@ -213,10 +207,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_auth_middleware_valid() {
-        let middleware = Arc::new(AuthMiddleware::new(
-            vec![Box::new(TestProvider)],
-            true,
-        ));
+        let middleware = Arc::new(AuthMiddleware::new(vec![Box::new(TestProvider)], true));
 
         let app = Router::new()
             .route("/api/protected/data", get(|| async { "ok" }))
@@ -244,10 +235,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_auth_middleware_invalid_token() {
-        let middleware = Arc::new(AuthMiddleware::new(
-            vec![Box::new(TestProvider)],
-            true,
-        ));
+        let middleware = Arc::new(AuthMiddleware::new(vec![Box::new(TestProvider)], true));
 
         let app = Router::new()
             .route("/api/protected/data", get(|| async { "ok" }))

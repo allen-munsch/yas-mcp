@@ -17,8 +17,8 @@
 //!        CLOSED           OPEN (reset timer)
 //! ```
 
-use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU8, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 /// Circuit breaker states
@@ -95,12 +95,9 @@ impl CircuitBreaker {
             }
             CircuitState::Open => {
                 // Check if cooldown has elapsed → transition to half-open
-                let should_half_open = self
-                    .opened_at
-                    .lock().unwrap()
-                    .is_some_and(|opened| {
-                        opened.elapsed() >= Duration::from_secs(self.config.cooldown_secs)
-                    });
+                let should_half_open = self.opened_at.lock().unwrap().is_some_and(|opened| {
+                    opened.elapsed() >= Duration::from_secs(self.config.cooldown_secs)
+                });
 
                 if should_half_open {
                     self.transition_to(CircuitState::HalfOpen);
@@ -220,11 +217,14 @@ mod tests {
 
     #[test]
     fn test_opens_after_failures() {
-        let cb = CircuitBreaker::new("test", CircuitBreakerConfig {
-            failure_threshold: 3,
-            cooldown_secs: 3600, // Long cooldown to prevent auto half-open
-            half_open_max_requests: 1,
-        });
+        let cb = CircuitBreaker::new(
+            "test",
+            CircuitBreakerConfig {
+                failure_threshold: 3,
+                cooldown_secs: 3600, // Long cooldown to prevent auto half-open
+                half_open_max_requests: 1,
+            },
+        );
 
         // Record failures
         cb.record_failure();
@@ -240,11 +240,14 @@ mod tests {
 
     #[test]
     fn test_half_open_after_cooldown() {
-        let cb = CircuitBreaker::new("test", CircuitBreakerConfig {
-            failure_threshold: 1,
-            cooldown_secs: 0, // Immediate cooldown for testing
-            half_open_max_requests: 1,
-        });
+        let cb = CircuitBreaker::new(
+            "test",
+            CircuitBreakerConfig {
+                failure_threshold: 1,
+                cooldown_secs: 0, // Immediate cooldown for testing
+                half_open_max_requests: 1,
+            },
+        );
 
         // Trip immediately
         cb.record_failure();
@@ -257,11 +260,14 @@ mod tests {
 
     #[test]
     fn test_success_in_half_open_closes_circuit() {
-        let cb = CircuitBreaker::new("test", CircuitBreakerConfig {
-            failure_threshold: 1,
-            cooldown_secs: 0,
-            half_open_max_requests: 1,
-        });
+        let cb = CircuitBreaker::new(
+            "test",
+            CircuitBreakerConfig {
+                failure_threshold: 1,
+                cooldown_secs: 0,
+                half_open_max_requests: 1,
+            },
+        );
 
         cb.record_failure();
         assert!(cb.check().is_ok()); // Half-open
@@ -273,11 +279,14 @@ mod tests {
 
     #[test]
     fn test_failure_in_half_open_reopens() {
-        let cb = CircuitBreaker::new("test", CircuitBreakerConfig {
-            failure_threshold: 1,
-            cooldown_secs: 3600, // Long cooldown so it stays open after re-trip
-            half_open_max_requests: 1,
-        });
+        let cb = CircuitBreaker::new(
+            "test",
+            CircuitBreakerConfig {
+                failure_threshold: 1,
+                cooldown_secs: 3600, // Long cooldown so it stays open after re-trip
+                half_open_max_requests: 1,
+            },
+        );
 
         // Trip → Open
         cb.record_failure();
@@ -298,11 +307,14 @@ mod tests {
 
     #[test]
     fn test_reset() {
-        let cb = CircuitBreaker::new("test", CircuitBreakerConfig {
-            failure_threshold: 1,
-            cooldown_secs: 3600,
-            half_open_max_requests: 1,
-        });
+        let cb = CircuitBreaker::new(
+            "test",
+            CircuitBreakerConfig {
+                failure_threshold: 1,
+                cooldown_secs: 3600,
+                half_open_max_requests: 1,
+            },
+        );
 
         cb.record_failure();
         assert_eq!(cb.current_state(), CircuitState::Open);

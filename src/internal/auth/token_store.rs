@@ -3,7 +3,7 @@
 //! Provides in-memory token caching with automatic refresh, session binding,
 //! and garbage collection of expired tokens.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use reqwest::Client;
@@ -46,8 +46,8 @@ impl TokenSet {
     /// Check if the token is expired or will expire within the buffer window
     pub fn is_expired(&self, refresh_buffer: Duration) -> bool {
         let now = Utc::now();
-        let buffer_time = chrono::Duration::from_std(refresh_buffer)
-            .unwrap_or(chrono::Duration::minutes(5));
+        let buffer_time =
+            chrono::Duration::from_std(refresh_buffer).unwrap_or(chrono::Duration::minutes(5));
         now + buffer_time >= self.expires_at
     }
 
@@ -140,7 +140,14 @@ impl TokenStore {
         let access_token = entry.tokens.access_token.clone();
 
         // Check max sessions
-        if self.sessions.len() as u64 >= self.config.try_read().map(|c| c.max_sessions_per_user).unwrap_or(10) * 10 {
+        if self.sessions.len() as u64
+            >= self
+                .config
+                .try_read()
+                .map(|c| c.max_sessions_per_user)
+                .unwrap_or(10)
+                * 10
+        {
             warn!(user_id = %user_id, "High session count — consider GC");
         }
 
@@ -309,8 +316,12 @@ pub async fn refresh_access_token(
 
     Ok(TokenSet {
         access_token: refresh_resp.access_token,
-        token_type: refresh_resp.token_type.unwrap_or_else(|| "Bearer".to_string()),
-        refresh_token: refresh_resp.refresh_token.or(Some(refresh_token.to_string())),
+        token_type: refresh_resp
+            .token_type
+            .unwrap_or_else(|| "Bearer".to_string()),
+        refresh_token: refresh_resp
+            .refresh_token
+            .or(Some(refresh_token.to_string())),
         id_token: refresh_resp.id_token,
         obtained_at: now,
         expires_at,
@@ -409,8 +420,10 @@ impl ConnectorTokenCache {
     /// Store a token for a connector.
     pub fn store(&self, connector: &str, access_token: &str, expires_in_secs: i64) {
         let expires_at = Utc::now() + chrono::Duration::seconds(expires_in_secs);
-        self.tokens
-            .insert(connector.to_string(), (access_token.to_string(), expires_at));
+        self.tokens.insert(
+            connector.to_string(),
+            (access_token.to_string(), expires_at),
+        );
         info!(
             connector,
             expires_in = expires_in_secs,

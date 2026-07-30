@@ -1,7 +1,7 @@
 use tracing::{error, info};
 use yas_mcp::cli::{build_cli, parse_config};
-use yas_mcp::internal::server::create_server;
 use yas_mcp::internal::config::ServerMode;
+use yas_mcp::internal::server::create_server;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -49,9 +49,13 @@ async fn main() -> anyhow::Result<()> {
     };
 
     // Parse the OpenAPI spec and register tools
-    server.setup_tools().await.map_err(|e| {
-        error!("Failed to setup tools: {}", e);
-    }).ok();
+    server
+        .setup_tools()
+        .await
+        .map_err(|e| {
+            error!("Failed to setup tools: {}", e);
+        })
+        .ok();
 
     let tool_count = server.tool_count();
     info!("Server initialized with {} tools", tool_count);
@@ -133,7 +137,9 @@ async fn run_demo() -> anyhow::Result<()> {
     println!();
     println!("  Try: curl -s -X POST http://localhost:3002/mcp \\");
     println!("    -H content-type:application/json \\");
-    println!("    -d '{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\",\"params\":{{}}}}' | jq .result.tools[].name");
+    println!(
+        "    -d '{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\",\"params\":{{}}}}' | jq .result.tools[].name"
+    );
     println!();
 
     server.start_with_graceful_shutdown().await?;

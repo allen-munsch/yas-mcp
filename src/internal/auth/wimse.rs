@@ -26,7 +26,7 @@
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
-use jsonwebtoken::{decode, DecodingKey, Validation};
+use jsonwebtoken::{DecodingKey, Validation, decode};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tracing::{debug, warn};
@@ -57,6 +57,7 @@ pub enum Audience {
 
 impl Audience {
     /// Parse an audience from its string representation (JWT `aud` claim).
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Self {
         match s {
             "weft:token-exchange" => Audience::TokenExchange,
@@ -150,15 +151,11 @@ impl Scope {
 /// Whether an action was delegated by a user or initiated autonomously by an agent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum AutonomyLevel {
+    #[default]
     Delegated,
     Autonomous,
-}
-
-impl Default for AutonomyLevel {
-    fn default() -> Self {
-        Self::Delegated
-    }
 }
 
 /// One hop in a delegation chain.
@@ -317,10 +314,9 @@ impl IdentityValidator {
             .context("missing weft.trust_domain")?
             .to_string();
 
-        let delegation_chain: DelegationChain = serde_json::from_value(
-            weft["delegation_chain"].clone(),
-        )
-        .context("failed to parse delegation_chain")?;
+        let delegation_chain: DelegationChain =
+            serde_json::from_value(weft["delegation_chain"].clone())
+                .context("failed to parse delegation_chain")?;
 
         // Parse audience
         let aud = Audience::from_str(aud_raw);
@@ -416,7 +412,7 @@ pub struct TokenExchangeResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use jsonwebtoken::{encode, EncodingKey, Header};
+    use jsonwebtoken::{EncodingKey, Header, encode};
 
     /// Helper: create a minimal valid JWT for testing
     fn create_test_jwt(
@@ -450,22 +446,29 @@ mod tests {
         });
 
         let header = Header::new(jsonwebtoken::Algorithm::HS256);
-        encode(
-            &header,
-            &claims,
-            &EncodingKey::from_secret(signing_key),
-        )
-        .expect("failed to create test JWT")
+        encode(&header, &claims, &EncodingKey::from_secret(signing_key))
+            .expect("failed to create test JWT")
     }
 
     #[test]
     fn validates_valid_token() {
         let key = b"test-signing-key-32-bytes!!!!!!";
-        let jwt = create_test_jwt(key, "https://test.weft.local", "weft:connector:gmail", "sandbox-abc", "agent-1", 5);
+        let jwt = create_test_jwt(
+            key,
+            "https://test.weft.local",
+            "weft:connector:gmail",
+            "sandbox-abc",
+            "agent-1",
+            5,
+        );
 
         let validator = IdentityValidator::new("test.weft.local", key);
         let result = validator.validate(&jwt);
-        assert!(result.is_ok(), "expected valid token, got: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "expected valid token, got: {:?}",
+            result.err()
+        );
 
         let token = result.unwrap();
         assert_eq!(token.sub, "agent:agent-1");
@@ -476,7 +479,14 @@ mod tests {
     #[test]
     fn rejects_expired_token() {
         let key = b"test-signing-key-32-bytes!!!!!!";
-        let jwt = create_test_jwt(key, "https://test.weft.local", "weft:connector:gmail", "sandbox-abc", "agent-1", -1);
+        let jwt = create_test_jwt(
+            key,
+            "https://test.weft.local",
+            "weft:connector:gmail",
+            "sandbox-abc",
+            "agent-1",
+            -1,
+        );
 
         let validator = IdentityValidator::new("test.weft.local", key);
         let result = validator.validate(&jwt);
@@ -486,7 +496,14 @@ mod tests {
     #[test]
     fn rejects_wrong_audience() {
         let key = b"test-signing-key-32-bytes!!!!!!";
-        let jwt = create_test_jwt(key, "https://test.weft.local", "weft:connector:gmail", "sandbox-abc", "agent-1", 5);
+        let jwt = create_test_jwt(
+            key,
+            "https://test.weft.local",
+            "weft:connector:gmail",
+            "sandbox-abc",
+            "agent-1",
+            5,
+        );
 
         let validator = IdentityValidator::new("test.weft.local", key);
         let result = validator.validate_for_audience(&jwt, &Audience::Connector("slack".into()));
@@ -497,7 +514,14 @@ mod tests {
     fn rejects_wrong_signing_key() {
         let key_a = b"test-signing-key-a-32-bytes!!";
         let key_b = b"test-signing-key-b-32-bytes!!";
-        let jwt = create_test_jwt(key_a, "https://test.weft.local", "weft:connector:gmail", "sandbox-abc", "agent-1", 5);
+        let jwt = create_test_jwt(
+            key_a,
+            "https://test.weft.local",
+            "weft:connector:gmail",
+            "sandbox-abc",
+            "agent-1",
+            5,
+        );
 
         let validator = IdentityValidator::new("test.weft.local", key_b);
         let result = validator.validate(&jwt);
@@ -507,7 +531,14 @@ mod tests {
     #[test]
     fn rejects_wrong_issuer() {
         let key = b"test-signing-key-32-bytes!!!!!!";
-        let jwt = create_test_jwt(key, "https://evil.weft.local", "weft:connector:gmail", "sandbox-abc", "agent-1", 5);
+        let jwt = create_test_jwt(
+            key,
+            "https://evil.weft.local",
+            "weft:connector:gmail",
+            "sandbox-abc",
+            "agent-1",
+            5,
+        );
 
         let validator = IdentityValidator::new("test.weft.local", key);
         let result = validator.validate(&jwt);
@@ -537,7 +568,10 @@ mod tests {
 
         let validator = IdentityValidator::new("test.weft.local", key);
         let result = validator.validate(&jwt);
-        assert!(result.is_err(), "expected missing weft claim to be rejected");
+        assert!(
+            result.is_err(),
+            "expected missing weft claim to be rejected"
+        );
         assert!(
             result.unwrap_err().to_string().contains("weft"),
             "error should mention missing weft claim"
@@ -546,11 +580,26 @@ mod tests {
 
     #[test]
     fn audience_parsing() {
-        assert_eq!(Audience::from_str("weft:token-exchange"), Audience::TokenExchange);
-        assert_eq!(Audience::from_str("weft:connector:gmail"), Audience::Connector("gmail".into()));
-        assert_eq!(Audience::from_str("weft:connector:slack"), Audience::Connector("slack".into()));
-        assert_eq!(Audience::from_str("weft:platform-internal"), Audience::PlatformInternal);
-        assert_eq!(Audience::from_str("custom-audience"), Audience::Custom("custom-audience".into()));
+        assert_eq!(
+            Audience::from_str("weft:token-exchange"),
+            Audience::TokenExchange
+        );
+        assert_eq!(
+            Audience::from_str("weft:connector:gmail"),
+            Audience::Connector("gmail".into())
+        );
+        assert_eq!(
+            Audience::from_str("weft:connector:slack"),
+            Audience::Connector("slack".into())
+        );
+        assert_eq!(
+            Audience::from_str("weft:platform-internal"),
+            Audience::PlatformInternal
+        );
+        assert_eq!(
+            Audience::from_str("custom-audience"),
+            Audience::Custom("custom-audience".into())
+        );
     }
 
     #[test]
@@ -568,7 +617,14 @@ mod tests {
     #[test]
     fn token_exchange_flow() {
         let key = b"test-signing-key-32-bytes!!!!!!";
-        let jwt = create_test_jwt(key, "https://test.weft.local", "weft:connector:gmail", "sandbox-abc", "agent-1", 5);
+        let jwt = create_test_jwt(
+            key,
+            "https://test.weft.local",
+            "weft:connector:gmail",
+            "sandbox-abc",
+            "agent-1",
+            5,
+        );
 
         // Step 1: validate the platform JWT
         let validator = IdentityValidator::new("test.weft.local", key);

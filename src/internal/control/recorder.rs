@@ -52,7 +52,7 @@ pub struct Recording {
 }
 
 mod base64_body {
-    use base64::{engine::general_purpose::STANDARD, Engine};
+    use base64::{Engine, engine::general_purpose::STANDARD};
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
     pub fn serialize<S>(bytes: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error>
@@ -68,9 +68,7 @@ mod base64_body {
         D: Deserializer<'de>,
     {
         let encoded = String::deserialize(deserializer)?;
-        STANDARD
-            .decode(&encoded)
-            .map_err(serde::de::Error::custom)
+        STANDARD.decode(&encoded).map_err(serde::de::Error::custom)
     }
 }
 
@@ -270,11 +268,7 @@ impl RecordReplay {
                                 }
                             },
                             Err(e) => {
-                                warn!(
-                                    "Failed to read recording {}: {}",
-                                    file_path.display(),
-                                    e
-                                );
+                                warn!("Failed to read recording {}: {}", file_path.display(), e);
                             }
                         }
                     }
@@ -313,14 +307,15 @@ mod tests {
         // Record a response
         let mut headers = HashMap::new();
         headers.insert("content-type".into(), "application/json".into());
-        rr.save(
-            "get_users", "GET", "/users", "{}", 200, &headers, b"hello",
-        )
-        .unwrap();
+        rr.save("get_users", "GET", "/users", "{}", 200, &headers, b"hello")
+            .unwrap();
 
         // Verify file exists
         let hash = RecordReplay::make_hash("GET", "/users", "{}");
-        let file_path = config.directory.join("get_users").join(format!("{hash}.json"));
+        let file_path = config
+            .directory
+            .join("get_users")
+            .join(format!("{hash}.json"));
         assert!(file_path.exists());
 
         // Now replay
@@ -365,7 +360,12 @@ mod tests {
         config.replay = true;
         let result = RecordReplay::new(config);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Cannot enable both"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Cannot enable both")
+        );
     }
 
     #[test]
@@ -429,8 +429,26 @@ mod tests {
         let rr = RecordReplay::new(config.clone()).unwrap();
         let headers = HashMap::new();
 
-        rr.save("get_users", "GET", "/users", r#"{"page":1}"#, 200, &headers, b"page1").unwrap();
-        rr.save("get_users", "GET", "/users", r#"{"page":2}"#, 200, &headers, b"page2").unwrap();
+        rr.save(
+            "get_users",
+            "GET",
+            "/users",
+            r#"{"page":1}"#,
+            200,
+            &headers,
+            b"page1",
+        )
+        .unwrap();
+        rr.save(
+            "get_users",
+            "GET",
+            "/users",
+            r#"{"page":2}"#,
+            200,
+            &headers,
+            b"page2",
+        )
+        .unwrap();
 
         // Verify two different files
         let tool_dir = config.directory.join("get_users");
