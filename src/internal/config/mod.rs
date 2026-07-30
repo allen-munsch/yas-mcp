@@ -373,8 +373,8 @@ impl AppConfig {
         }
 
         // Process scopes if they're provided as space-separated string
-        if let Some(oauth) = &mut app_config.oauth {
-            if oauth.scopes.len() == 1 {
+        if let Some(oauth) = &mut app_config.oauth
+            && oauth.scopes.len() == 1 {
                 let single_scope = &oauth.scopes[0];
                 if single_scope.contains(' ') {
                     oauth.scopes = single_scope
@@ -383,7 +383,6 @@ impl AppConfig {
                         .collect();
                 }
             }
-        }
 
         Ok(app_config)
     }

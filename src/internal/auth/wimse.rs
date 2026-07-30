@@ -150,16 +150,13 @@ impl Scope {
 /// Whether an action was delegated by a user or initiated autonomously by an agent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum AutonomyLevel {
+    #[default]
     Delegated,
     Autonomous,
 }
 
-impl Default for AutonomyLevel {
-    fn default() -> Self {
-        Self::Delegated
-    }
-}
 
 /// One hop in a delegation chain.
 #[derive(Debug, Clone, Serialize, Deserialize)]

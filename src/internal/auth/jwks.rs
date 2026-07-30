@@ -350,23 +350,21 @@ pub struct JwtClaims {
 /// Extract cache TTL from HTTP response headers
 fn extract_ttl_from_response(response: &reqwest::Response) -> Duration {
     // Try Cache-Control: max-age=N
-    if let Some(cache_control) = response.headers().get("cache-control") {
-        if let Ok(value) = cache_control.to_str() {
+    if let Some(cache_control) = response.headers().get("cache-control")
+        && let Ok(value) = cache_control.to_str() {
             for part in value.split(',') {
                 let part = part.trim();
-                if let Some(age_str) = part.strip_prefix("max-age=") {
-                    if let Ok(age) = age_str.parse::<u64>() {
+                if let Some(age_str) = part.strip_prefix("max-age=")
+                    && let Ok(age) = age_str.parse::<u64>() {
                         return Duration::from_secs(age);
                     }
-                }
             }
         }
-    }
 
     // Try Expires header
-    if let Some(expires) = response.headers().get("expires") {
-        if let Ok(value) = expires.to_str() {
-            if let Ok(expiry_time) = chrono::DateTime::parse_from_rfc2822(value) {
+    if let Some(expires) = response.headers().get("expires")
+        && let Ok(value) = expires.to_str()
+            && let Ok(expiry_time) = chrono::DateTime::parse_from_rfc2822(value) {
                 let now = chrono::Utc::now();
                 let duration = expiry_time.with_timezone(&chrono::Utc) - now;
                 let secs = duration.num_seconds();
@@ -374,8 +372,6 @@ fn extract_ttl_from_response(response: &reqwest::Response) -> Duration {
                     return Duration::from_secs(secs as u64);
                 }
             }
-        }
-    }
 
     // Default: 1 hour
     Duration::from_secs(3600)

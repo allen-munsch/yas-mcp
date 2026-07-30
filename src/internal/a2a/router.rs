@@ -276,11 +276,10 @@ fn extract_skill_name(message: &TaskMessage) -> Option<String> {
             }
             Part::Text { text } => {
                 // Fallback: try to parse text as JSON to find skill name
-                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(text) {
-                    if let Some(skill) = parsed.get("skill").and_then(|s| s.as_str()) {
+                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(text)
+                    && let Some(skill) = parsed.get("skill").and_then(|s| s.as_str()) {
                         return Some(skill.to_string());
                     }
-                }
                 // If text is just a simple string, treat it as the skill name
                 if !text.contains(' ') && !text.contains('\n') {
                     return Some(text.clone());
@@ -309,11 +308,10 @@ fn extract_parameters(message: &TaskMessage) -> serde_json::Value {
                 return params;
             }
             Part::Text { text } => {
-                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(text) {
-                    if let Some(params) = parsed.get("parameters") {
+                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(text)
+                    && let Some(params) = parsed.get("parameters") {
                         return params.clone();
                     }
-                }
             }
             _ => {}
         }

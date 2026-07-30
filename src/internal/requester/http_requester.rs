@@ -38,11 +38,10 @@ impl HttpRequester {
             let lower_key = k.to_lowercase();
             // TODO: remove this
             debug!("{}: {}", lower_key, v);
-            if let Ok(name) = HeaderName::try_from(lower_key.as_str()) {
-                if let Ok(value) = HeaderValue::from_str(v) {
+            if let Ok(name) = HeaderName::try_from(lower_key.as_str())
+                && let Ok(value) = HeaderValue::from_str(v) {
                     default_headers.insert(name, value);
                 }
-            }
         }
         if !default_headers.contains_key(USER_AGENT) {
             default_headers.insert(USER_AGENT, HeaderValue::from_static("yas-mcp-agent/0.0.1"));
@@ -277,11 +276,10 @@ impl HttpRequester {
             }
         }
 
-        if let Some(body_data) = body {
-            if method != "GET" {
+        if let Some(body_data) = body
+            && method != "GET" {
                 request_builder = request_builder.json(&body_data);
             }
-        }
 
         let response = request_builder
             .send()

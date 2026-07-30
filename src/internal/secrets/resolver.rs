@@ -108,11 +108,10 @@ impl SecretResolver for EnvResolver {
 
     async fn resolve(&self, secret_ref: &SecretRef) -> Result<String> {
         // Check override map first
-        if let Some(ref overrides) = self.overrides {
-            if let Some(value) = overrides.get(&secret_ref.path) {
+        if let Some(ref overrides) = self.overrides
+            && let Some(value) = overrides.get(&secret_ref.path) {
                 return Ok(value.clone());
             }
-        }
         // Fall back to real environment
         std::env::var(&secret_ref.path).map_err(|_| {
             anyhow::anyhow!(

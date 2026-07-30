@@ -62,11 +62,10 @@ impl SwaggerParser {
     fn ensure_strict_object(value: &mut Value) {
         match value {
             Value::Object(map) => {
-                if let Some(Value::String(t)) = map.get("type") {
-                    if t == "object" && !map.contains_key("properties") {
+                if let Some(Value::String(t)) = map.get("type")
+                    && t == "object" && !map.contains_key("properties") {
                         map.insert("properties".to_string(), serde_json::json!({}));
                     }
-                }
 
                 if let Some(Value::Object(props)) = map.get_mut("properties") {
                     for v in props.values_mut() {
@@ -154,11 +153,10 @@ impl SwaggerParser {
                     "description": description
                 });
 
-                if !obj.required.is_empty() {
-                    if let Some(map) = json.as_object_mut() {
+                if !obj.required.is_empty()
+                    && let Some(map) = json.as_object_mut() {
                         map.insert("required".to_string(), serde_json::json!(obj.required));
                     }
-                }
                 json
             }
             SchemaKind::Type(Type::Array(arr)) => {
@@ -268,13 +266,12 @@ impl SwaggerParser {
             ReferenceOr::Reference { .. } => return None,
         };
 
-        if let Some(content) = request_body.content.get("application/json") {
-            if let Some(schema) = &content.schema {
+        if let Some(content) = request_body.content.get("application/json")
+            && let Some(schema) = &content.schema {
                 let mut json_schema = Self::schema_to_json_schema(schema);
                 Self::ensure_strict_object(&mut json_schema);
                 return Some(json_schema);
             }
-        }
         None
     }
 
@@ -333,12 +330,11 @@ impl SwaggerParser {
             }
         }
 
-        if matches!(route.method.as_str(), "POST" | "PUT" | "PATCH") {
-            if let Some(body_schema) = self.get_body_schema(route) {
+        if matches!(route.method.as_str(), "POST" | "PUT" | "PATCH")
+            && let Some(body_schema) = self.get_body_schema(route) {
                 properties.insert("body".to_string(), body_schema);
                 required.push("body".to_string());
             }
-        }
 
         let mut schema = Map::new();
         schema.insert(

@@ -38,11 +38,10 @@ pub enum SpecVersion {
 
 /// Detect the specification version from the raw JSON/YAML value
 pub fn detect_version(value: &Value) -> SpecVersion {
-    if let Some(swagger) = value.get("swagger").and_then(|v| v.as_str()) {
-        if swagger.starts_with("2.") {
+    if let Some(swagger) = value.get("swagger").and_then(|v| v.as_str())
+        && swagger.starts_with("2.") {
             return SpecVersion::Swagger2;
         }
-    }
 
     if let Some(openapi) = value.get("openapi").and_then(|v| v.as_str()) {
         if openapi.starts_with("3.0") {
@@ -296,9 +295,9 @@ fn convert_swagger2_operation(op: &Value, _path: &str) -> Result<Value> {
     }
 
     // If operation has `produces`, wrap responses with content types
-    if let Some(produces) = op_obj.get("produces").and_then(|v| v.as_array()) {
-        if let Some(responses) = new_op.get_mut("responses") {
-            if let Some(resp_obj) = responses.as_object_mut() {
+    if let Some(produces) = op_obj.get("produces").and_then(|v| v.as_array())
+        && let Some(responses) = new_op.get_mut("responses")
+            && let Some(resp_obj) = responses.as_object_mut() {
                 for (_code, resp) in resp_obj.iter_mut() {
                     if resp.is_object() && resp.get("content").is_none() {
                         let content = build_content_for_produces(produces, resp);
@@ -308,8 +307,6 @@ fn convert_swagger2_operation(op: &Value, _path: &str) -> Result<Value> {
                     }
                 }
             }
-        }
-    }
 
     Ok(Value::Object(new_op))
 }
@@ -412,8 +409,8 @@ fn downgrade_openapi31_to_30(spec: &Value) -> Result<Value> {
         obj.remove("webhooks");
 
         // Walk through the spec and fix `type` arrays (3.1 allows `type: ["string", "null"]`)
-        if let Some(components) = obj.get_mut("components").and_then(|c| c.as_object_mut()) {
-            if let Some(schemas) = components
+        if let Some(components) = obj.get_mut("components").and_then(|c| c.as_object_mut())
+            && let Some(schemas) = components
                 .get_mut("schemas")
                 .and_then(|s| s.as_object_mut())
             {
@@ -421,7 +418,6 @@ fn downgrade_openapi31_to_30(spec: &Value) -> Result<Value> {
                     fix_type_arrays_for_30(schema);
                 }
             }
-        }
 
         // Walk paths
         if let Some(paths) = obj.get_mut("paths").and_then(|p| p.as_object_mut()) {

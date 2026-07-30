@@ -41,21 +41,18 @@ pub fn generate_mock_from_schema(schema: &Value) -> Value {
         Some("object") => mock_object(schema),
         _ => {
             // Check for enum
-            if let Some(enums) = schema.get("enum").and_then(|e| e.as_array()) {
-                if let Some(first) = enums.first() {
+            if let Some(enums) = schema.get("enum").and_then(|e| e.as_array())
+                && let Some(first) = enums.first() {
                     return first.clone();
                 }
-            }
             // Check for oneOf/anyOf — pick first option
             if let Some(one_of) = schema
                 .get("oneOf")
                 .or(schema.get("anyOf"))
                 .and_then(|a| a.as_array())
-            {
-                if let Some(first) = one_of.first() {
+                && let Some(first) = one_of.first() {
                     return generate_mock_from_schema(first);
                 }
-            }
             // Fallback
             json!("mock_value")
         }
