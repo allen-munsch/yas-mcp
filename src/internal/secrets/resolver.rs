@@ -4,6 +4,7 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
+use std::collections::HashMap;
 
 /// A reference to a secret, parsed from a `scheme://path` string.
 ///
@@ -69,8 +70,35 @@ pub trait SecretResolver: Send + Sync {
 
 // ── Built-in: Environment Variable Resolver ────────────────────────────────
 
-/// Resolves `env://VARIABLE_NAME` references from environment variables
-pub struct EnvResolver;
+/// Resolves `env://VARIABLE_NAME` references from environment variables.
+///
+/// Optionally holds a static override map for testing, so callers can inject
+/// fake environment values without mutating the real process environment.
+pub struct EnvResolver {
+    overrides: Option<HashMap<String, String>>,
+}
+
+impl EnvResolver {
+    /// Create an `EnvResolver` that reads from the real process environment.
+    pub fn new() -> Self {
+        Self { overrides: None }
+    }
+
+    /// Create an `EnvResolver` with a static override map.
+    /// The map is checked first; if a variable isn't found there,
+    /// falls back to the real process environment.
+    pub fn with_map(map: HashMap<String, String>) -> Self {
+        Self {
+            overrides: Some(map),
+        }
+    }
+}
+
+impl Default for EnvResolver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 #[async_trait]
 impl SecretResolver for EnvResolver {
@@ -79,6 +107,13 @@ impl SecretResolver for EnvResolver {
     }
 
     async fn resolve(&self, secret_ref: &SecretRef) -> Result<String> {
+        // Check override map first
+        if let Some(ref overrides) = self.overrides {
+            if let Some(value) = overrides.get(&secret_ref.path) {
+                return Ok(value.clone());
+            }
+        }
+        // Fall back to real environment
         std::env::var(&secret_ref.path).map_err(|_| {
             anyhow::anyhow!(
                 "Environment variable '{}' not set (referenced as env://{})",
@@ -203,17 +238,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_env_resolver() {
-        unsafe { std::env::set_var("TEST_SECRET_ENV_VAR", "secret-value-123"); }
-        let resolver = EnvResolver;
+        let mut map = HashMap::new();
+        map.insert("TEST_SECRET_ENV_VAR".into(), "secret-value-123".into());
+        let resolver = EnvResolver::with_map(map);
         let secret_ref = SecretRef::parse("env://TEST_SECRET_ENV_VAR").unwrap();
         let value = resolver.resolve(&secret_ref).await.unwrap();
         assert_eq!(value, "secret-value-123");
-        unsafe { std::env::remove_var("TEST_SECRET_ENV_VAR"); }
     }
 
     #[tokio::test]
     async fn test_env_resolver_missing() {
-        let resolver = EnvResolver;
+        let resolver = EnvResolver::new();
         let secret_ref = SecretRef::parse("env://DEFINITELY_NOT_SET_12345").unwrap();
         let result = resolver.resolve(&secret_ref).await;
         assert!(result.is_err());

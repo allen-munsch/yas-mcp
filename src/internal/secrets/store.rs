@@ -29,7 +29,7 @@ impl Default for SecretStore {
         let mut store = Self {
             resolvers: HashMap::new(),
         };
-        store.register(Arc::new(EnvResolver));
+        store.register(Arc::new(EnvResolver::new()));
         store.register(Arc::new(FileResolver));
         store.register(Arc::new(LiteralResolver));
         store
@@ -158,13 +158,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_resolve_env_value() {
-        unsafe { std::env::set_var("TEST_STORE_VAR", "from-env-456"); }
-        let store = SecretStore::default();
+        let mut store = SecretStore::empty();
+        let mut map = HashMap::new();
+        map.insert("TEST_STORE_VAR".into(), "from-env-456".into());
+        store.register(Arc::new(EnvResolver::with_map(map)));
 
         let value = store.resolve_value("env://TEST_STORE_VAR").await.unwrap();
         assert_eq!(value, "from-env-456");
-
-        unsafe { std::env::remove_var("TEST_STORE_VAR"); }
     }
 
     #[tokio::test]
@@ -183,18 +183,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_resolve_map() {
-        unsafe { std::env::set_var("TEST_MAP_PASS", "s3cr3t"); }
-        let store = SecretStore::default();
-
+        let mut store = SecretStore::empty();
         let mut map = HashMap::new();
-        map.insert("username".into(), "admin".into()); // plain
-        map.insert("password".into(), "env://TEST_MAP_PASS".into()); // secret ref
+        map.insert("TEST_MAP_PASS".into(), "s3cr3t".into());
+        store.register(Arc::new(EnvResolver::with_map(map)));
 
-        let resolved = store.resolve_map(&map).await.unwrap();
+        let mut input = HashMap::new();
+        input.insert("username".into(), "admin".into()); // plain
+        input.insert("password".into(), "env://TEST_MAP_PASS".into()); // secret ref
+
+        let resolved = store.resolve_map(&input).await.unwrap();
         assert_eq!(resolved["username"], "admin");
         assert_eq!(resolved["password"], "s3cr3t");
-
-        unsafe { std::env::remove_var("TEST_MAP_PASS"); }
     }
 
     #[test]
@@ -236,7 +236,7 @@ mod tests {
     #[test]
     fn test_register_custom() {
         let mut store = SecretStore::empty();
-        store.register(Arc::new(EnvResolver));
+        store.register(Arc::new(EnvResolver::new()));
         store.register(Arc::new(FileResolver));
         assert_eq!(store.schemes().len(), 2);
         assert!(store.has_scheme("env"));
